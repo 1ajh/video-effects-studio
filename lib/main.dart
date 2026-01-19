@@ -52,7 +52,8 @@ class VideoEffectsStudioApp extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
         home: const ResponsiveHome(),
@@ -70,7 +71,9 @@ class ResponsiveHome extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Determine if this is truly a mobile device
-        final isMobileDevice = !kIsWeb && (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
+        final isMobileDevice = !kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.iOS ||
+                defaultTargetPlatform == TargetPlatform.android);
         
         // Use mobile layout for small screens or mobile devices
         if (constraints.maxWidth < 600) {

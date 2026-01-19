@@ -59,7 +59,10 @@ class _AboutScreenState extends State<AboutScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.3),
                         blurRadius: 16,
                         offset: const Offset(0, 8),
                       ),
@@ -126,7 +129,11 @@ class _AboutScreenState extends State<AboutScreen> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Video Effects Studio is a cross-platform video effects processor featuring modes like Purple Vocoder, Cursed Christmas, Sparta Pitch, and more. Originally based on NotSoBot tag commands, now available as a native application for all devices.',
+                    'Video Effects Studio is a cross-platform video effects '
+                    'processor featuring modes like Purple Vocoder, Cursed '
+                    'Christmas, Sparta Pitch, and more. Originally based on '
+                    'NotSoBot tag commands, now available as a native '
+                    'application for all devices.',
                     style: TextStyle(height: 1.5),
                   ),
                 ],
@@ -160,7 +167,10 @@ class _AboutScreenState extends State<AboutScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _buildFeatureRow(Icons.auto_awesome, '${EffectsRegistry.allEffects.length}+ Video Effects'),
+                  _buildFeatureRow(
+                    Icons.auto_awesome,
+                    '${EffectsRegistry.allEffects.length}+ Video Effects',
+                  ),
                   _buildFeatureRow(Icons.layers, 'Batch Processing'),
                   _buildFeatureRow(Icons.touch_app, 'Drag & Drop Support'),
                   _buildFeatureRow(Icons.devices, 'Cross-Platform'),

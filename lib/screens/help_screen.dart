@@ -24,11 +24,31 @@ class HelpScreen extends StatelessWidget {
             icon: Icons.play_circle,
             title: 'Quick Start Guide',
             children: [
-              _buildStep('1', 'Select Videos', 'Tap "Add Videos" or drag & drop video files into the app.'),
-              _buildStep('2', 'Choose Effect', 'Browse and select an effect from the effects grid.'),
-              _buildStep('3', 'Adjust Parameters', 'If available, customize the effect parameters to your liking.'),
-              _buildStep('4', 'Process', 'Tap the "Process" button to apply the effect to your videos.'),
-              _buildStep('5', 'View Results', 'Find your processed videos in the output folder.'),
+              _buildStep(
+                '1',
+                'Select Videos',
+                'Tap "Add Videos" or drag & drop video files into the app.',
+              ),
+              _buildStep(
+                '2',
+                'Choose Effect',
+                'Browse and select an effect from the effects grid.',
+              ),
+              _buildStep(
+                '3',
+                'Adjust Parameters',
+                'If available, customize the effect parameters to your liking.',
+              ),
+              _buildStep(
+                '4',
+                'Process',
+                'Tap the "Process" button to apply the effect to your videos.',
+              ),
+              _buildStep(
+                '5',
+                'View Results',
+                'Find your processed videos in the output folder.',
+              ),
             ],
           ),
 
@@ -88,35 +108,48 @@ class HelpScreen extends StatelessWidget {
             children: [
               _buildFAQ(
                 'What video formats are supported?',
-                'Video Effects Studio supports most common video formats including MP4, MOV, AVI, MKV, and WebM.',
+                'Video Effects Studio supports most common video formats '
+                    'including MP4, MOV, AVI, MKV, and WebM.',
               ),
               _buildFAQ(
                 'Where are processed videos saved?',
-                'By default, processed videos are saved to the VideoEffectsStudio folder in your Documents/Videos directory. You can change this in Settings.',
+                'By default, processed videos are saved to the '
+                    'VideoEffectsStudio folder in your Documents/Videos '
+                    'directory. You can change this in Settings.',
               ),
               _buildFAQ(
                 'What does "Desktop Only" mean?',
-                'Some effects require desktop-specific features (like Wine for autotune.exe) and may not work correctly on mobile devices or web.',
+                'Some effects require desktop-specific features (like Wine '
+                    'for autotune.exe) and may not work correctly on mobile '
+                    'devices or web.',
               ),
               _buildFAQ(
                 'Can I process multiple videos at once?',
-                'Yes! You can select multiple videos and process them all at once. They will be processed in sequence.',
+                'Yes! You can select multiple videos and process them all '
+                    'at once. They will be processed in sequence.',
               ),
               _buildFAQ(
                 'Why is processing slow?',
-                'Video processing is computationally intensive. Processing time depends on video length, resolution, and the complexity of the selected effect.',
+                'Video processing is computationally intensive. Processing '
+                    'time depends on video length, resolution, and the '
+                    'complexity of the selected effect.',
               ),
               _buildFAQ(
                 'How do I cancel processing?',
-                'Click the "Cancel" button in the processing dialog to stop the current operation.',
+                'Click the "Cancel" button in the processing dialog to '
+                    'stop the current operation.',
               ),
               _buildFAQ(
                 'What is G Major?',
-                'G Major is a type of audio/visual effect popular in the YouTube Poop community. It typically involves inverted colors and pitch-shifted audio harmonies.',
+                'G Major is a type of audio/visual effect popular in the '
+                    'YouTube Poop community. It typically involves inverted '
+                    'colors and pitch-shifted audio harmonies.',
               ),
               _buildFAQ(
                 'How do I update the app?',
-                'The app automatically checks for updates. When available, you\'ll see a banner at the top of the screen with update details.',
+                'The app automatically checks for updates. When available, '
+                    'you\'ll see a banner at the top of the screen with '
+                    'update details.',
               ),
             ],
           ),

@@ -7,7 +7,11 @@ class EffectMode {
   final String iconPath;
   final bool requiresDesktop; // For effects that need Wine/autotune.exe
   final List<EffectParameter> parameters;
-  final String Function(String inputPath, String outputPath, Map<String, dynamic> params) buildCommand;
+  final String Function(
+    String inputPath,
+    String outputPath,
+    Map<String, dynamic> params,
+  ) buildCommand;
 
   const EffectMode({
     required this.id,

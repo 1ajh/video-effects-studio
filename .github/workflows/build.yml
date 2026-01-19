@@ -27,6 +27,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       
+      - name: Recreate Android platform
+        run: |
+          rm -rf android
+          flutter create --platforms=android --org com.ajh --project-name video_effects_studio .
+      
       - name: Build APK
         run: flutter build apk --release
       
@@ -58,6 +63,11 @@ jobs:
       
       - name: Install dependencies
         run: flutter pub get
+      
+      - name: Recreate iOS platform
+        run: |
+          rm -rf ios
+          flutter create --platforms=ios --org com.ajh --project-name video_effects_studio .
       
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
@@ -92,6 +102,11 @@ jobs:
       - name: Enable macOS
         run: flutter config --enable-macos-desktop
       
+      - name: Recreate macOS platform
+        run: |
+          rm -rf macos
+          flutter create --platforms=macos --org com.ajh --project-name video_effects_studio .
+      
       - name: Build macOS
         run: flutter build macos --release
       
@@ -105,13 +120,22 @@ jobs:
             --icon-size 100 \
             --app-drop-link 450 185 \
             "VideoEffectsStudio-macos.dmg" \
-            "build/macos/Build/Products/Release/"
+            "build/macos/Build/Products/Release/" || true
+      
+      - name: Fallback - Create ZIP
+        if: always()
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r ../../../../../VideoEffectsStudio-macos.zip *.app || true
       
       - name: Upload macOS Build
         uses: actions/upload-artifact@v4
         with:
-          name: macos-dmg
-          path: VideoEffectsStudio-macos.dmg
+          name: macos-build
+          path: |
+            VideoEffectsStudio-macos.dmg
+            VideoEffectsStudio-macos.zip
+          if-no-files-found: warn
 
   build-windows:
     runs-on: windows-latest
@@ -129,6 +153,12 @@ jobs:
       
       - name: Enable Windows
         run: flutter config --enable-windows-desktop
+      
+      - name: Recreate Windows platform
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force windows -ErrorAction SilentlyContinue
+          flutter create --platforms=windows --org com.ajh --project-name video_effects_studio .
       
       - name: Build Windows
         run: flutter build windows --release
@@ -151,7 +181,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libglib2.0-dev
       
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -164,6 +194,11 @@ jobs:
       
       - name: Enable Linux
         run: flutter config --enable-linux-desktop
+      
+      - name: Recreate Linux platform
+        run: |
+          rm -rf linux
+          flutter create --platforms=linux --org com.ajh --project-name video_effects_studio .
       
       - name: Build Linux
         run: flutter build linux --release
@@ -225,7 +260,7 @@ jobs:
           files: |
             artifacts/android-apk/app-release.apk
             artifacts/ios-build/VideoEffectsStudio-ios.ipa
-            artifacts/macos-dmg/VideoEffectsStudio-macos.dmg
+            artifacts/macos-build/*
             artifacts/windows-zip/VideoEffectsStudio-windows.zip
             artifacts/linux-tar/VideoEffectsStudio-linux.tar.gz
             artifacts/web-zip/VideoEffectsStudio-web.zip
