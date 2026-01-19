@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'services/app_state.dart';
-import 'services/preferences_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/mobile_home_screen.dart';
 import 'screens/tablet_home_screen.dart';
-import 'dart:io';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

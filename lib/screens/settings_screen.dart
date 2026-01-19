@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/preferences_service.dart';
-import '../services/app_state.dart';
 import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:srle_studio/models/effect_mode.dart';
-import 'package:srle_studio/models/effects_registry.dart';
+import 'package:video_effects_studio/models/effect_mode.dart';
+import 'package:video_effects_studio/models/effects_registry.dart';
 
 void main() {
   group('EffectMode', () {

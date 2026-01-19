@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/app_state.dart';
-import '../services/update_service.dart';
 import '../widgets/effect_card.dart';
 import '../widgets/file_drop_zone.dart';
 import '../widgets/processing_dialog.dart';

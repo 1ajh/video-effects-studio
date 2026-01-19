@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:srle_studio/widgets/effect_card.dart';
-import 'package:srle_studio/models/effect_mode.dart';
+import 'package:video_effects_studio/widgets/effect_card.dart';
+import 'package:video_effects_studio/models/effect_mode.dart';
 
 void main() {
   group('EffectCard Widget', () {

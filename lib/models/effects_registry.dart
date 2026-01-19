@@ -233,7 +233,6 @@ ffmpeg -i "$input" -vf "hue=h=232.653,hflip,crop=iw/2:ih:0:0,pad=iw*2:ih:0:0[lef
         ),
       ],
       buildCommand: (input, output, params) {
-        int iterations = params['iterations'] ?? 25;
         double duration = params['duration'] ?? 1.0;
         return '''
 ffmpeg -i "$input" -vf "hue=s=0,curves=r='0/1 0.333/0 0.667/1 1/0':g='0/1 0.333/1 0.667/0 1/0':b='0/1 0.333/0 0.667/0 1/0',format=yuv420p" -filter_complex "[0:a]rubberband=pitch=0.5[a1];[0:a][a1]amix=2;[0:a]rubberband=pitch=1.682[a2];amix=inputs=2,volume=100" -t $duration -c:v libx264 -c:a aac "$output"
