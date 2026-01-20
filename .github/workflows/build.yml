@@ -32,6 +32,11 @@ jobs:
           rm -rf android
           flutter create --platforms=android --org com.ajh --project-name video_effects_studio .
       
+      - name: Set Android SDK version
+        run: |
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle
+      
       - name: Build APK
         run: flutter build apk --release
       
@@ -68,6 +73,11 @@ jobs:
         run: |
           rm -rf ios
           flutter create --platforms=ios --org com.ajh --project-name video_effects_studio .
+      
+      - name: Set iOS deployment target
+        run: |
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' ios/Runner.xcodeproj/project.pbxproj
+          echo "platform :ios, '13.0'" | cat - ios/Podfile > temp && mv temp ios/Podfile
       
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
@@ -106,6 +116,11 @@ jobs:
         run: |
           rm -rf macos
           flutter create --platforms=macos --org com.ajh --project-name video_effects_studio .
+      
+      - name: Set macOS deployment target
+        run: |
+          sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]*/MACOSX_DEPLOYMENT_TARGET = 10.15/g' macos/Runner.xcodeproj/project.pbxproj
+          echo "platform :osx, '10.15'" | cat - macos/Podfile > temp && mv temp macos/Podfile
       
       - name: Build macOS
         run: flutter build macos --release
@@ -199,6 +214,7 @@ jobs:
         run: |
           rm -rf linux
           flutter create --platforms=linux --org com.ajh --project-name video_effects_studio .
+          flutter pub get
       
       - name: Build Linux
         run: flutter build linux --release
