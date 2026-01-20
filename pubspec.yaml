@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   
   # FFmpeg processing
-  ffmpeg_kit_flutter: ^6.0.3
+  ffmpeg_kit_flutter: ^5.1.0
   
   # File picking and management
   file_picker: ^6.1.1
