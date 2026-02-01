@@ -128,8 +128,28 @@ jobs:
           sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]*/MACOSX_DEPLOYMENT_TARGET = 10.15/g' macos/Runner.xcodeproj/project.pbxproj
           echo "platform :osx, '10.15'" | cat - macos/Podfile > temp && mv temp macos/Podfile
       
+      - name: Download FFmpeg for macOS
+        run: |
+          # Install FFmpeg via brew and copy the binary
+          brew install ffmpeg
+          mkdir -p ffmpeg-bin
+          cp $(which ffmpeg) ffmpeg-bin/
+          cp $(which ffprobe) ffmpeg-bin/
+          # Make them standalone by copying required dylibs (or use static build)
+          # For now, we'll note that users may need FFmpeg
+          ls -la ffmpeg-bin/
+      
       - name: Build macOS
         run: flutter build macos --release
+      
+      - name: Bundle FFmpeg with app
+        run: |
+          # Copy FFmpeg into the app bundle's MacOS directory
+          APP_PATH="build/macos/Build/Products/Release/video_effects_studio.app"
+          mkdir -p "$APP_PATH/Contents/MacOS/bin"
+          cp ffmpeg-bin/ffmpeg "$APP_PATH/Contents/MacOS/bin/" || true
+          cp ffmpeg-bin/ffprobe "$APP_PATH/Contents/MacOS/bin/" || true
+          ls -la "$APP_PATH/Contents/MacOS/" || true
       
       - name: Create DMG
         run: |
@@ -181,8 +201,32 @@ jobs:
           Remove-Item -Recurse -Force windows -ErrorAction SilentlyContinue
           flutter create --platforms=windows --org com.ajh --project-name video_effects_studio .
       
+      - name: Download FFmpeg for Windows
+        shell: pwsh
+        run: |
+          # Download FFmpeg essentials build (smaller, contains what we need)
+          $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Write-Host "Downloading FFmpeg from $ffmpegUrl"
+          Invoke-WebRequest -Uri $ffmpegUrl -OutFile ffmpeg.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-temp
+          # Find and copy ffmpeg.exe and ffprobe.exe
+          $ffmpegDir = Get-ChildItem -Path ffmpeg-temp -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path "ffmpeg-bin"
+          Copy-Item "$($ffmpegDir.FullName)/bin/ffmpeg.exe" -Destination "ffmpeg-bin/"
+          Copy-Item "$($ffmpegDir.FullName)/bin/ffprobe.exe" -Destination "ffmpeg-bin/"
+          Write-Host "FFmpeg binaries ready in ffmpeg-bin/"
+          Get-ChildItem ffmpeg-bin/
+      
       - name: Build Windows
         run: flutter build windows --release
+      
+      - name: Bundle FFmpeg with app
+        shell: pwsh
+        run: |
+          Copy-Item "ffmpeg-bin/ffmpeg.exe" -Destination "build/windows/x64/runner/Release/"
+          Copy-Item "ffmpeg-bin/ffprobe.exe" -Destination "build/windows/x64/runner/Release/"
+          Write-Host "Contents of release folder:"
+          Get-ChildItem "build/windows/x64/runner/Release/"
       
       - name: Create Archive
         run: |
@@ -223,8 +267,28 @@ jobs:
           flutter create --platforms=linux --org com.ajh --project-name video_effects_studio .
           flutter pub get
       
+      - name: Download FFmpeg for Linux
+        run: |
+          # Download static FFmpeg build for Linux
+          curl -L "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o ffmpeg.tar.xz
+          mkdir ffmpeg-temp
+          tar -xf ffmpeg.tar.xz -C ffmpeg-temp --strip-components=1
+          mkdir -p ffmpeg-bin
+          cp ffmpeg-temp/ffmpeg ffmpeg-bin/
+          cp ffmpeg-temp/ffprobe ffmpeg-bin/
+          chmod +x ffmpeg-bin/*
+          ls -la ffmpeg-bin/
+      
       - name: Build Linux
         run: flutter build linux --release
+      
+      - name: Bundle FFmpeg with app
+        run: |
+          cp ffmpeg-bin/ffmpeg build/linux/x64/release/bundle/
+          cp ffmpeg-bin/ffprobe build/linux/x64/release/bundle/
+          chmod +x build/linux/x64/release/bundle/ffmpeg
+          chmod +x build/linux/x64/release/bundle/ffprobe
+          ls -la build/linux/x64/release/bundle/
       
       - name: Create tarball
         run: |

@@ -7,26 +7,71 @@ import '../models/effect_mode.dart';
 
 /// Service for processing videos with FFmpeg
 class FFmpegService {
-  static bool? _useSystemFFmpeg;
+  static String? _ffmpegPath;
   static Process? _currentProcess;
 
-  /// Check if system FFmpeg is available
-  static Future<bool> _checkSystemFFmpeg() async {
-    if (_useSystemFFmpeg != null) return _useSystemFFmpeg!;
+  /// Get the path to the FFmpeg executable
+  /// Checks for bundled FFmpeg first, then falls back to system FFmpeg
+  static Future<String?> _getFFmpegPath() async {
+    if (_ffmpegPath != null) return _ffmpegPath;
     
+    // Get the directory where the executable is located
+    final executableDir = path.dirname(Platform.resolvedExecutable);
+    
+    // Possible locations for bundled FFmpeg
+    final possiblePaths = <String>[];
+    
+    if (Platform.isWindows) {
+      // Windows: ffmpeg.exe in same directory as app
+      possiblePaths.addAll([
+        path.join(executableDir, 'ffmpeg.exe'),
+        path.join(executableDir, 'bin', 'ffmpeg.exe'),
+      ]);
+    } else if (Platform.isMacOS) {
+      // macOS: in MacOS/bin directory or MacOS directory
+      possiblePaths.addAll([
+        path.join(executableDir, 'bin', 'ffmpeg'),
+        path.join(executableDir, 'ffmpeg'),
+        // Also check in Resources
+        path.join(executableDir, '..', 'Resources', 'ffmpeg'),
+      ]);
+    } else if (Platform.isLinux) {
+      // Linux: in same directory as app or lib subdirectory
+      possiblePaths.addAll([
+        path.join(executableDir, 'ffmpeg'),
+        path.join(executableDir, 'bin', 'ffmpeg'),
+        path.join(executableDir, 'lib', 'ffmpeg'),
+      ]);
+    }
+    
+    // Check bundled paths first
+    for (final ffmpegPath in possiblePaths) {
+      final file = File(ffmpegPath);
+      if (await file.exists()) {
+        print('Found bundled FFmpeg at: $ffmpegPath');
+        _ffmpegPath = ffmpegPath;
+        return _ffmpegPath;
+      }
+    }
+    
+    // Fall back to system FFmpeg
     try {
       final result = await Process.run(
         Platform.isWindows ? 'where' : 'which',
         ['ffmpeg'],
         runInShell: true,
       );
-      _useSystemFFmpeg = result.exitCode == 0;
+      if (result.exitCode == 0) {
+        final systemPath = result.stdout.toString().trim().split('\n').first;
+        print('Using system FFmpeg at: $systemPath');
+        _ffmpegPath = 'ffmpeg'; // Use system path
+        return _ffmpegPath;
+      }
     } catch (e) {
-      _useSystemFFmpeg = false;
+      print('Could not find system FFmpeg: $e');
     }
     
-    print('System FFmpeg available: $_useSystemFFmpeg');
-    return _useSystemFFmpeg!;
+    return null;
   }
 
   /// Process a single video with the given effect
@@ -53,16 +98,17 @@ class FFmpegService {
         );
       }
 
-      // Check if FFmpeg is available first
-      final ffmpegAvailable = await _checkSystemFFmpeg();
-      if (!ffmpegAvailable) {
+      // Check if FFmpeg is available
+      final ffmpegPath = await _getFFmpegPath();
+      if (ffmpegPath == null) {
         return ProcessResult(
           success: false,
-          message: 'FFmpeg is not installed.\n\n'
-              'Please install FFmpeg:\n'
-              '• Windows: Download from https://ffmpeg.org/download.html and add to PATH\n'
-              '• Mac: Run "brew install ffmpeg"\n'
-              '• Linux: Run "sudo apt install ffmpeg"',
+          message: 'FFmpeg is not available.\n\n'
+              'The bundled FFmpeg was not found. Please reinstall the application or '
+              'install FFmpeg manually:\n'
+              '• Windows: winget install FFmpeg\n'
+              '• Mac: brew install ffmpeg\n'
+              '• Linux: sudo apt install ffmpeg',
         );
       }
 
@@ -86,7 +132,8 @@ class FFmpegService {
         command = command.substring(7);
       }
 
-      return await _processWithSystemFFmpeg(
+      return await _processWithFFmpeg(
+        ffmpegPath: ffmpegPath,
         command: command,
         outputPath: outputPath,
         onProgress: onProgress,
@@ -101,8 +148,9 @@ class FFmpegService {
     }
   }
 
-  /// Process video using system FFmpeg binary
-  static Future<ProcessResult> _processWithSystemFFmpeg({
+  /// Process video using FFmpeg binary (bundled or system)
+  static Future<ProcessResult> _processWithFFmpeg({
+    required String ffmpegPath,
     required String command,
     required String outputPath,
     required Function(double progress) onProgress,
@@ -117,7 +165,7 @@ class FFmpegService {
       print('Running FFmpeg with args: ${fullArgs.join(' ')}');
       
       _currentProcess = await Process.start(
-        'ffmpeg',
+        ffmpegPath,
         fullArgs,
         runInShell: Platform.isWindows,
       );
@@ -286,11 +334,14 @@ class FFmpegService {
     return outputDir;
   }
 
-  /// Get video duration in seconds using system FFmpeg
+  /// Get video duration in seconds using FFmpeg
   static Future<double> _getVideoDuration(String inputPath) async {
     try {
+      final ffmpegPath = await _getFFmpegPath();
+      if (ffmpegPath == null) return 0;
+      
       final result = await Process.run(
-        'ffmpeg',
+        ffmpegPath,
         ['-i', inputPath],
         runInShell: Platform.isWindows,
       );
@@ -331,8 +382,11 @@ class FFmpegService {
   /// Get FFmpeg version info
   static Future<String> getVersion() async {
     try {
+      final ffmpegPath = await _getFFmpegPath();
+      if (ffmpegPath == null) return 'FFmpeg not found';
+      
       final result = await Process.run(
-        'ffmpeg',
+        ffmpegPath,
         ['-version'],
         runInShell: Platform.isWindows,
       );
@@ -347,7 +401,7 @@ class FFmpegService {
 
   /// Check if FFmpeg is available
   static Future<bool> isAvailable() async {
-    return await _checkSystemFFmpeg();
+    return await _getFFmpegPath() != null;
   }
 }
 
