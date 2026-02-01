@@ -271,13 +271,13 @@ jobs:
       
       - name: Download FFmpeg for Linux
         run: |
-          # Download static FFmpeg build for Linux
-          curl -L "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o ffmpeg.tar.xz
+          # Download FFmpeg static build from BtbN (more reliable)
+          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" -o ffmpeg.tar.xz
           mkdir ffmpeg-temp
           tar -xf ffmpeg.tar.xz -C ffmpeg-temp --strip-components=1
           mkdir -p ffmpeg-bin
-          cp ffmpeg-temp/ffmpeg ffmpeg-bin/
-          cp ffmpeg-temp/ffprobe ffmpeg-bin/
+          cp ffmpeg-temp/bin/ffmpeg ffmpeg-bin/
+          cp ffmpeg-temp/bin/ffprobe ffmpeg-bin/
           chmod +x ffmpeg-bin/*
           ls -la ffmpeg-bin/
       
