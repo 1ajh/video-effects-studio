@@ -10,13 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # FFmpeg processing - using version 4.5.1 which has working binaries
-  ffmpeg_kit_flutter: ^4.5.1
-  
   # File picking and management
   file_picker: ^6.1.1
   path_provider: ^2.1.1
   path: ^1.8.3
+  desktop_drop: ^0.4.4
+  cross_file: ^1.0.0
   
   # State management
   provider: ^6.1.1

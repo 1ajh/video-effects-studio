@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import '../services/app_state.dart';
 
 class FileDropZone extends StatefulWidget {
@@ -19,6 +21,22 @@ class FileDropZone extends StatefulWidget {
 class _FileDropZoneState extends State<FileDropZone> {
   bool _isDragOver = false;
 
+  void _handleDrop(DropDoneDetails details) {
+    final paths = details.files
+        .map((file) => file.path)
+        .where((path) => _isVideoFile(path))
+        .toList();
+    
+    if (paths.isNotEmpty) {
+      widget.onFilesDropped(paths);
+    }
+  }
+
+  bool _isVideoFile(String path) {
+    final ext = path.toLowerCase().split('.').last;
+    return ['mp4', 'mov', 'avi', 'mkv', 'webm', 'wmv', 'flv', 'm4v'].contains(ext);
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -26,39 +44,36 @@ class _FileDropZoneState extends State<FileDropZone> {
 
     return GestureDetector(
       onTap: widget.onTap,
-      child: DragTarget<List<String>>(
-        onWillAcceptWithDetails: (details) {
+      child: DropTarget(
+        onDragEntered: (details) {
           setState(() => _isDragOver = true);
-          return true;
         },
-        onLeave: (_) {
+        onDragExited: (details) {
           setState(() => _isDragOver = false);
         },
-        onAcceptWithDetails: (details) {
+        onDragDone: (details) {
           setState(() => _isDragOver = false);
-          widget.onFilesDropped(details.data);
+          _handleDrop(details);
         },
-        builder: (context, candidateData, rejectedData) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: _isDragOver
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                : const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
               color: _isDragOver
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                  : const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _isDragOver
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.grey.withOpacity(0.3),
-                width: _isDragOver ? 2 : 1,
-                style: BorderStyle.solid,
-              ),
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.grey.withValues(alpha: 0.3),
+              width: _isDragOver ? 2 : 1,
+              style: BorderStyle.solid,
             ),
-            child: hasFiles
-                ? _buildFilesPreview(appState)
-                : _buildEmptyState(),
-          );
-        },
+          ),
+          child: hasFiles
+              ? _buildFilesPreview(appState)
+              : _buildEmptyState(),
+        ),
       ),
     );
   }
@@ -73,7 +88,7 @@ class _FileDropZoneState extends State<FileDropZone> {
             size: 48,
             color: _isDragOver
                 ? Theme.of(context).colorScheme.primary
-                : Colors.grey,
+                : Colors.grey.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(
@@ -83,7 +98,7 @@ class _FileDropZoneState extends State<FileDropZone> {
               fontWeight: FontWeight.w500,
               color: _isDragOver
                   ? Theme.of(context).colorScheme.primary
-                  : Colors.grey,
+                  : Colors.grey.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 8),
@@ -91,7 +106,7 @@ class _FileDropZoneState extends State<FileDropZone> {
             'or click to browse',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: Colors.grey.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 16),
@@ -105,7 +120,7 @@ class _FileDropZoneState extends State<FileDropZone> {
               'MP4, MOV, AVI, MKV, WebM',
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.grey[500],
+                color: Colors.grey.withValues(alpha: 0.5),
               ),
             ),
           ),

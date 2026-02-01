@@ -123,10 +123,26 @@ class ProcessingDialog extends StatelessWidget {
                               size: 20,
                             ),
                             title: Text(
-                              result.outputPath?.split('/').last.split('\\').last ?? 'Unknown',
+                              result.success 
+                                  ? (result.outputPath?.split('/').last.split('\\').last ?? 'Output')
+                                  : 'Processing failed',
                               style: const TextStyle(fontSize: 12),
                               overflow: TextOverflow.ellipsis,
                             ),
+                            subtitle: result.success 
+                                ? null 
+                                : Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      result.message,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.red[300],
+                                      ),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                             trailing: result.success && result.outputPath != null
                                 ? IconButton(
                                     icon: const Icon(Icons.folder_open, size: 18),

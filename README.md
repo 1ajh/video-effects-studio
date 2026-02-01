@@ -105,12 +105,42 @@ Download the latest release for your platform from the [Releases](https://github
 
 > **Note**: Android, iOS, and macOS builds are temporarily unavailable due to upstream FFmpeg library issues. You can build these platforms from source.
 
+### FFmpeg Requirement
+
+**This application requires FFmpeg to be installed on your system.** The app uses the system FFmpeg binary to process videos.
+
+**Windows:**
+```bash
+# Option 1: Using winget (recommended)
+winget install FFmpeg
+
+# Option 2: Using Chocolatey
+choco install ffmpeg
+
+# Option 3: Manual installation
+# Download from https://ffmpeg.org/download.html#build-windows
+# Extract and add the bin folder to your system PATH
+```
+
+**macOS:**
+```bash
+brew install ffmpeg
+```
+
+**Linux:**
+```bash
+sudo apt install ffmpeg  # Ubuntu/Debian
+sudo dnf install ffmpeg  # Fedora
+sudo pacman -S ffmpeg    # Arch
+```
+
 ### Build from Source
 
 #### Prerequisites
 
 1. Install [Flutter](https://docs.flutter.dev/get-started/install) (3.24 or higher)
-2. Install platform-specific dependencies:
+2. Install FFmpeg (see above)
+3. Install platform-specific dependencies:
 
 **Windows:**
 ```bash
