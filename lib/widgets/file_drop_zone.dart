@@ -59,13 +59,13 @@ class _FileDropZoneState extends State<FileDropZone> {
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: _isDragOver
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
                 : const Color(0xFF1A1A1A),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: _isDragOver
                   ? Theme.of(context).colorScheme.primary
-                  : Colors.grey.withValues(alpha: 0.3),
+                  : Colors.grey.withOpacity(0.3),
               width: _isDragOver ? 2 : 1,
               style: BorderStyle.solid,
             ),
@@ -88,7 +88,7 @@ class _FileDropZoneState extends State<FileDropZone> {
             size: 48,
             color: _isDragOver
                 ? Theme.of(context).colorScheme.primary
-                : Colors.grey.withValues(alpha: 0.5),
+                : Colors.grey.withOpacity(0.5),
           ),
           const SizedBox(height: 16),
           Text(
@@ -98,7 +98,7 @@ class _FileDropZoneState extends State<FileDropZone> {
               fontWeight: FontWeight.w500,
               color: _isDragOver
                   ? Theme.of(context).colorScheme.primary
-                  : Colors.grey.withValues(alpha: 0.8),
+                  : Colors.grey.withOpacity(0.8),
             ),
           ),
           const SizedBox(height: 8),
@@ -106,7 +106,7 @@ class _FileDropZoneState extends State<FileDropZone> {
             'or click to browse',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.withValues(alpha: 0.6),
+              color: Colors.grey.withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 16),
@@ -120,7 +120,7 @@ class _FileDropZoneState extends State<FileDropZone> {
               'MP4, MOV, AVI, MKV, WebM',
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.grey.withValues(alpha: 0.5),
+                color: Colors.grey.withOpacity(0.5),
               ),
             ),
           ),

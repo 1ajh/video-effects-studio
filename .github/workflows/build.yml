@@ -82,7 +82,8 @@ jobs:
       - name: Set iOS deployment target
         run: |
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' ios/Runner.xcodeproj/project.pbxproj
-          echo "platform :ios, '13.0'" | cat - ios/Podfile > temp && mv temp ios/Podfile
+          # Update the existing platform line in Podfile instead of prepending
+          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '13.0'/g" ios/Podfile
       
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
@@ -126,7 +127,8 @@ jobs:
       - name: Set macOS deployment target
         run: |
           sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]*/MACOSX_DEPLOYMENT_TARGET = 10.15/g' macos/Runner.xcodeproj/project.pbxproj
-          echo "platform :osx, '10.15'" | cat - macos/Podfile > temp && mv temp macos/Podfile
+          # Update the existing platform line in Podfile instead of prepending
+          sed -i '' "s/platform :osx, '[0-9.]*'/platform :osx, '10.15'/g" macos/Podfile
       
       - name: Download FFmpeg for macOS
         run: |
