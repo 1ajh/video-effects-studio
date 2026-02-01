@@ -15,7 +15,6 @@ dependencies:
   path_provider: ^2.1.1
   path: ^1.8.3
   desktop_drop: ^0.4.4
-  cross_file: ^1.0.0
   
   # State management
   provider: ^6.1.1
