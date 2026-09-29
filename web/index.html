@@ -1,17 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Video Effects Studio - Process videos with 20+ effects including Vocoders, G Majors, and more">
-  <meta name="keywords" content="video, effects, vocoder, g major, flutter, web">
-  <meta name="author" content="AJH">
+  <meta name="description" content="Video Effects Studio — logo-editing style video effects (G-Majors, vocoders, compilations). Desktop app.">
 
   <!-- iOS meta tags & icons -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Video Effects Studio">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -20,100 +31,16 @@
 
   <title>Video Effects Studio</title>
   <link rel="manifest" href="manifest.json">
-
-  <style>
-    :root {
-      --bg-color: #121212;
-      --primary-color: #6B4EFF;
-    }
-    
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: var(--bg-color);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    .loading-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      color: white;
-    }
-    
-    .loading-logo {
-      width: 80px;
-      height: 80px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, var(--primary-color), #9d8cff);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 24px;
-      animation: pulse 2s infinite;
-    }
-    
-    .loading-logo svg {
-      width: 40px;
-      height: 40px;
-      fill: white;
-    }
-    
-    .loading-text {
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-    
-    .loading-subtext {
-      font-size: 14px;
-      opacity: 0.7;
-    }
-    
-    .loading-bar {
-      width: 200px;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 2px;
-      margin-top: 24px;
-      overflow: hidden;
-    }
-    
-    .loading-bar-fill {
-      height: 100%;
-      background: var(--primary-color);
-      border-radius: 2px;
-      animation: load 2s ease-in-out infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-    
-    @keyframes load {
-      0% { width: 0%; margin-left: 0; }
-      50% { width: 100%; margin-left: 0; }
-      100% { width: 0%; margin-left: 100%; }
-    }
-  </style>
 </head>
 <body>
-  <div class="loading-container" id="loading">
-    <div class="loading-logo">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4zM14 13h-3v3H9v-3H6v-2h3V8h2v3h3v2z"/>
-      </svg>
-    </div>
-    <div class="loading-text">Video Effects Studio</div>
-    <div class="loading-subtext">Loading application...</div>
-    <div class="loading-bar">
-      <div class="loading-bar-fill"></div>
-    </div>
-  </div>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
 
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -27,7 +27,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 build/
-*.lock
+# (pubspec.lock is committed for reproducible app builds)
 
 # Android
 **/android/**/gradle-wrapper.jar

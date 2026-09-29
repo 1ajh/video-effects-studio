@@ -1,0 +1,4 @@
+tags:
+  ffmpeg:
+    # Renders real media; needs an ffmpeg binary (VFX_FFMPEG or PATH).
+    timeout: 20m

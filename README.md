@@ -1,381 +1,120 @@
 # Video Effects Studio
 
-A cross-platform video effects processor featuring modes like Purple Vocoder, Cursed Christmas, Sparta Pitch, and more. Originally based on NotSoBot tag commands, now available as a native application for all devices.
+A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, Sparta pitches, glitches, and 140+ more. Preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos.
 
-![Video Effects Studio](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS%20%7C%20Web-blue)
-![Flutter](https://img.shields.io/badge/Flutter-3.19+-02569B?logo=flutter)
+![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-7C5CFF)
+![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Build Status](https://github.com/1ajh/srle-studio/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/1ajh/video-effects-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/1ajh/video-effects-studio/actions/workflows/ci.yml)
 
-## ✨ Features
+## What's inside
 
-- 🎬 **40+ Video Effects** - Vocoders, G Majors, Color Grading, Glitch, Audio Effects, YTPMV tools
-- 📁 **Batch Processing** - Process multiple videos at once
-- 🖱️ **Drag & Drop** - Simply drag videos into the app
-- 📱 **Cross-Platform** - Works on Windows, macOS, Linux, Android, iOS, and Web
-- 🔄 **Auto Updates** - Automatically checks for new versions from GitHub
-- ⚙️ **Customizable Parameters** - Adjust effect settings to your liking
-- 🎨 **Modern UI** - Beautiful dark theme with intuitive controls
-- 📊 **Processing History** - Track all your processed videos
-- ⭐ **Favorites** - Save your most-used effects
-- 📱 **Responsive Design** - Optimized layouts for mobile, tablet, and desktop
-- ⚡ **Real-time Preview** - See effect parameters before processing
+- **148 effects in 9 categories**, every one rendered through real FFmpeg in CI:
+  - **Logo Editing**: recipes documented by the logo-editing community (Low Voice, Luig Group, CoNfUsIoN, Devil's Blast, Chorded, Crying, Angry, Weird Code, Awake, Hitting, Sponge, Pitch Black, Crazy Diamond, V-Major, You Wiggled, DMA Diamond Major and more)
+  - **G-Majors & Chords**: G-Major 2 / 4, the NotSoBot G-Majors, and a **Chord Builder** where you type the pitch of every duplicated track
+  - **Vocoders & Robots**: real robotized voices (FFT phase vocoding), stacked into chords with the matching looks. The old version only tinted the video.
+  - **Color, Distortion, Glitch, Audio, Time & Speed**: mirrors, swirl, pinch, bulge, kaleidoscope, CRT, VHS, RGB split, datamosh melt, 8-bit, deep fried, vaporwave, bass boost, earrape, 8D audio, reverse, boomerang, stutter, nightcore…
+  - **YTPMV tools**: a real **Sparta Sequencer** (plays one sample as a melody), **Beat Chop** ("1 1 2 1 3 3 4 4") and **Pitch Ladder**
+- **Before / after preview**: every effect is rendered as a short preview automatically. Watch it on its own or side by side with the original.
+- **Effect thumbnails**: the effect list shows each effect applied to *your* clip.
+- **Compilations**: effects play one after another in order. Add effects one by one, a whole category, **every effect**, or **N random** ones; shuffle and drag to reorder. Optionally play the original first, and label each segment with a **name overlay** or a **title card**. Each item keeps its own settings.
+- **Trim** any range before rendering, with I/O shortcuts at the playhead.
+- **Export** MP4 (H.264/AAC, plays in Discord etc.), WebM, GIF, MP3 or WAV, at High / Balanced / Small quality with an optional resolution cap.
+- **Batch**: render one effect over every loaded clip.
+- **Presets, favorites and recents**.
+- **Custom effects**: write your own FFmpeg filter chains, test them in place, and use them anywhere (compilations included).
+- **Render queue** with progress, ETA, cancel, "show in folder", and a persistent history.
 
-## 🎭 Available Effects
+> Loud effects are loud on purpose: authentic volume, no limiter. They carry a 🔊 badge.
 
-### Vocoder Effects (12 effects)
-- Purple Vocoder - Classic vocoder with purple tint
-- Techno - Electronic dance music vocoder
-- Gansta - Hip-hop style vocoder
-- Xtal Vocoder - Crystal-clear vocoder effect
-- Daft Vocoder - Inspired by Daft Punk's sound
-- Electric - High voltage electronic voice
-- CapCut Robot Effect - TikTok-style robot voice
-- White Robotic Dimension - Ethereal robot vocals
-- Discord Electronic Sounds - Discord call glitch effect
-- Yellow Vocoder - Warm vocoder tones
-- Chromatic Vocoder - Multi-colored vocoder
-- Glitch Vocoder - Corrupted vocoder sound
+## Download
 
-### Color Grading (6 effects)
-- Loud Rainbow - Vibrant color cycling
-- Fast Color - Rapid hue rotation
-- Blue Distorted Pitches - Blue-tinted distortion
-- Grayscale - Black and white conversion
-- Sepia - Vintage brown tones
-- Posterize - Reduce color levels
+Grab the latest build from [Releases](https://github.com/1ajh/video-effects-studio/releases). FFmpeg is bundled, so there's nothing else to install.
 
-### Glitch & Distortion (14 effects)
-- G Major - Classic G Major effect
-- G Major Kyoobur9000 - Kyoobur style
-- G Major Adrian Sparino V2 - Adrian Sparino variant
-- G Major 2 LTV MCA - LTV MCA series
-- G Major 3 LTV MCA - LTV MCA series
-- G Major Alapat1 - Alapat1's version
-- Congabusher - Rhythm distortion
-- Cursed Christmas V2 - Holiday horror
-- JCTOTBOI G Major - JCTOTBOI style
-- VHS Effect - Retro VHS tape look
-- Camera Shake - Earthquake effect
-- Edge Detection - Outline extraction
-- Night Vision - Green military look
-- Thermal Camera - Heat map view
+| Platform | File | Notes |
+|---|---|---|
+| Windows 10/11 | `VideoEffectsStudio-windows.zip` | Unzip and run `video_effects_studio.exe` |
+| macOS 12+ | `VideoEffectsStudio-macos.dmg` | Unsigned: right-click → Open the first time |
+| Linux (x64) | `VideoEffectsStudio-linux.tar.gz` | Needs GTK 3 and **libmpv** for in-app playback (`sudo apt install libmpv2`) |
 
-### Audio Effects (8 effects)
-- Pitch Shift (-12 to +12 semitones)
-- Pitch Maker (with WAV export option)
-- Bass Boost - Enhanced low frequencies
-- Earrape - Extreme distortion (⚠️ loud!)
-- Echo - Delay/echo effect
-- Reverb - Room ambience
-- Chipmunk - High-pitched voice
-- Deep Voice - Low-pitched voice
+Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobile builds just show the effect list and a download link.
 
-### YTPMV Tools (4 effects)
-- Sparta Pitch - Customizable pitch sequences
-- YTPMV Base - Basic YTPMV template
-- Stutter Effect - Rapid repeat/stutter
-- Reverse - Play video backwards
+## Using it
 
-### Speed & Transform (4 effects)
-- Speed Up (2x) - Double speed
-- Slow Down (0.5x) - Half speed
-- Mirror Horizontal - Left-right flip
-- Mirror Vertical - Top-bottom flip
+1. **Add a clip**: drag it anywhere onto the window, or press `Ctrl+O`.
+2. **Pick an effect** on the left. A preview renders on its own (`Ctrl+P` to force it).
+3. Tweak **parameters** in the inspector on the right, and set the **output** format and folder below them.
+4. **Render** (`Ctrl+Enter`). Jobs appear in the queue (`Ctrl+Q`).
 
-### Other (3 effects)
-- Diamond Video - 4-way rotation overlay
-- Negative - Inverted colors
-- Pixelate - Retro pixel effect
+**Compilation mode** (`Ctrl+2`): add effects with the ➕ button, double-click, or `Ctrl+D`, or use *All effects / Add category / Random* in the dock at the bottom. Click a card to edit that item, drag to reorder, and choose *Original first* and a label style. Then render.
 
-## 📥 Installation
+### Shortcuts
 
-### Pre-built Releases
+| Keys | Action |
+|---|---|
+| `Ctrl+O` | Add clips |
+| `Ctrl+Enter` | Render |
+| `Ctrl+P` | Preview now |
+| `Space` / `Home` | Play-pause / back to start |
+| `I` / `O` | Set trim in / out |
+| `Ctrl+F`, `↑` `↓` | Search / step through effects |
+| `Ctrl+D` | Add effect to the compilation |
+| `Ctrl+1` / `Ctrl+2` | Single effect / Compilation mode |
+| `1` `2` `3` | Original / Effect / Split view |
+| `Ctrl+H`, `Ctrl+,`, `F1` | History, Settings, Help |
 
-Download the latest release for your platform from the [Releases](https://github.com/1ajh/srle-studio/releases) page.
+## Building from source
 
-| Platform | Download | Requirements | Status |
-|----------|----------|--------------|--------|
-| Windows | `VideoEffectsStudio-windows.zip` | Windows 10/11 | ✅ Available |
-| Linux | `VideoEffectsStudio-linux.tar.gz` | GTK 3.0+ | ✅ Available |
-| Web | [web.app](https://1ajh.github.io/srle-studio) | Modern browser | ✅ Available |
-| macOS | `VideoEffectsStudio-macos.dmg` | macOS 10.14+ | ⚠️ Build from source |
-| Android | `app-release.apk` | Android 6.0+ | ⚠️ Build from source |
-| iOS | `VideoEffectsStudio-ios.ipa` | iOS 12.0+ | ⚠️ Build from source |
-
-> **Note**: Android, iOS, and macOS builds are temporarily unavailable due to upstream FFmpeg library issues. You can build these platforms from source.
-
-> **FFmpeg is bundled with the application** - no separate installation required! Just download and run.
-
-### Build from Source
-
-#### Prerequisites
-
-1. Install [Flutter](https://docs.flutter.dev/get-started/install) (3.24 or higher)
-2. Install platform-specific dependencies:
-
-**Windows:**
-```bash
-# Visual Studio with C++ Desktop development workload
-```
-
-**macOS:**
-```bash
-xcode-select --install
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-```
-
-**Linux:**
-```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
-```
-
-#### Building
+Requirements: Flutter 3.47+ and FFmpeg on your `PATH` (or pick it in Settings → FFmpeg).
 
 ```bash
-# Clone the repository
-git clone https://github.com/1ajh/srle-studio.git
-cd srle-studio
-
-# Install dependencies
 flutter pub get
-
-# Run in development mode
-flutter run
-
-# Build for specific platforms
-flutter build windows --release
-flutter build macos --release
-flutter build linux --release
-flutter build apk --release
-flutter build ios --release --no-codesign
-flutter build web --release
+flutter run -d windows   # or macos / linux
 ```
 
-## 🚀 Usage
+Linux build dependencies:
 
-1. **Select Files**: Drag and drop video files into the left panel, or click to browse
-2. **Choose Effect**: Browse or search effects in the middle panel, click to select
-3. **Adjust Parameters**: If the effect has customizable parameters, adjust them in the right panel
-4. **Process**: Click "Process Video" (or "Process X Files" for batch)
-5. **View Results**: When complete, open the output folder to find your processed videos
+```bash
+sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev ffmpeg
+```
 
-### Keyboard Shortcuts (Desktop)
+### Tests
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl/Cmd + O` | Open file |
-| `Ctrl/Cmd + Enter` | Process video |
-| `Ctrl/Cmd + ,` | Open settings |
-| `Ctrl/Cmd + H` | View history |
-| `Escape` | Cancel/Close dialog |
+```bash
+flutter test --exclude-tags ffmpeg   # unit + widget tests (~500)
+flutter test --tags ffmpeg           # renders every effect with real FFmpeg
+VFX_FFMPEG=/path/to/ffmpeg flutter test --tags ffmpeg   # against a specific build
+```
 
-## 🧩 Adding New Effects
+The FFmpeg suite renders every effect on a clip with audio and on an odd-sized clip without audio. It also covers every output format, all compilation label modes, skipped-segment handling, previews and thumbnails. CI runs it against Ubuntu's FFmpeg 6.1, and it also passes on current FFmpeg master.
 
-Effects are defined in `lib/models/effects_registry.dart`. To add a new effect:
+## How effects work
+
+Effects are declared in `lib/core/effects/library/`. Each effect gets a label for the incoming stream and returns the label of its output, building a `-filter_complex` graph with shared blocks (`lib/core/ffmpeg/blocks.dart`): pitch shifting without rubberband, pitch chords, mirrors, waves, swirl, radial pinch/bulge, TV simulator, light rays, gradient maps and more.
 
 ```dart
-EffectMode(
-  id: 'my_new_effect',
-  name: 'My New Effect',
-  description: 'Description of what it does',
-  category: 'Glitch', // Vocoder, Color Grading, Glitch, Audio, YTPMV, Other
-  ffmpegFilter: '-vf "your_filter=param1:param2" -af "audio_filter"',
-  parameters: [
-    EffectParameter(
-      id: 'intensity',
-      name: 'Intensity',
-      description: 'How strong the effect is',
-      type: ParameterType.slider,
-      defaultValue: 1.0,
-      minValue: 0.0,
-      maxValue: 2.0,
-    ),
-  ],
+Effect(
+  id: 'luig_group',
+  name: 'Luig Group',
+  description: 'HSL Adjust "Invert Color" hue flip with the pitch set to −1.',
+  category: EffectCategory.logoEditing,
+  video: vf(hslInvert),
+  audio: af(pitch(-1)),
 ),
 ```
 
-### Parameter Types
-
-- `ParameterType.slider` - Numeric slider with min/max values
-- `ParameterType.dropdown` - Selection from predefined options
-- `ParameterType.toggle` - Boolean on/off switch
-- `ParameterType.text` - Free text input
-- `ParameterType.color` - Color picker
-
-## Remote Effects Updates
-
-The app can fetch new effects from a remote JSON file without requiring an app update. Create an `effects_registry.json` file in your GitHub repo:
-
-```json
-{
-  "version": "1.1.0",
-  "effects": [
-    {
-      "id": "new_remote_effect",
-      "name": "New Remote Effect",
-      "description": "Added via remote update",
-      "category": "other",
-      "command_template": "ffmpeg -i \"$INPUT\" -vf \"negate\" \"$OUTPUT\""
-    }
-  ]
-}
-```
-
-## 📁 Project Structure
+The command builder takes care of the boring parts: argument lists (no shell quoting), trimming, even frame sizes, `yuv420p`, 48 kHz stereo, clips without audio, exact segment lengths for compilations, and output encoders.
 
 ```
-srle-studio/
-├── lib/
-│   ├── main.dart                  # App entry point & responsive router
-│   ├── models/
-│   │   ├── effect_mode.dart       # Effect & Parameter data models
-│   │   ├── effects_registry.dart  # All 40+ effects definitions
-│   │   └── models.dart            # Barrel exports
-│   ├── screens/
-│   │   ├── home_screen.dart       # Desktop layout (>900px)
-│   │   ├── tablet_home_screen.dart # Tablet layout (600-900px)
-│   │   ├── mobile_home_screen.dart # Mobile layout (<600px)
-│   │   ├── settings_screen.dart   # User preferences
-│   │   ├── history_screen.dart    # Processing history
-│   │   ├── about_screen.dart      # App information
-│   │   └── help_screen.dart       # Help & FAQ
-│   ├── services/
-│   │   ├── app_state.dart         # Provider state management
-│   │   ├── ffmpeg_service.dart    # FFmpeg video processing
-│   │   ├── preferences_service.dart # Persistent settings
-│   │   └── update_service.dart    # Auto-update from GitHub
-│   └── widgets/
-│       ├── effect_card.dart       # Effect selection card
-│       ├── file_drop_zone.dart    # Drag & drop zone
-│       ├── parameter_editor.dart  # Effect parameter controls
-│       ├── processing_dialog.dart # Progress indicator
-│       └── update_banner.dart     # Update notification
-├── assets/
-│   ├── icons/                     # App icons
-│   └── modes/                     # Effect previews
-├── test/                          # Unit & widget tests
-├── android/                       # Android platform config
-├── ios/                           # iOS platform config
-├── macos/                         # macOS platform config
-├── windows/                       # Windows platform config
-├── linux/                         # Linux platform config
-├── web/                           # Web platform config
-└── pubspec.yaml                   # Dependencies
+lib/
+  core/        effects, FFmpeg command building, rendering (pure Dart, fully tested)
+  state/       controllers (project, editor, compilation, preview, queue, library, settings)
+  ui/          the editor: browser, preview, inspector, compilation dock, queue, pages
 ```
 
-## ⚠️ Technical Notes
+## Credits
 
-### Platform-Specific Features
+- Effect recipes are inspired by the [Logo Editing Wiki](https://logo-editing.fandom.com/wiki/Category:Effects) community and the original NotSoBot tags by **AJH**
+- [FFmpeg](https://ffmpeg.org), [Flutter](https://flutter.dev), [media_kit](https://github.com/media-kit/media-kit), [Inter](https://rsms.me/inter/) (SIL OFL)
 
-| Feature | Desktop | Mobile | Web |
-|---------|---------|--------|-----|
-| Drag & Drop | ✅ | ❌ | ✅ |
-| Batch Processing | ✅ | ✅ | ⚠️ Limited |
-| File System Access | ✅ Full | ✅ Scoped | ⚠️ Download only |
-| FFmpeg Processing | ✅ Full | ✅ Full | ⚠️ WASM (limited) |
-| Background Processing | ✅ | ⚠️ Limited | ❌ |
-| Notifications | ✅ | ✅ | ⚠️ Browser dependent |
-
-### Desktop-Only Effects
-
-Some effects (marked with 🖥️) require desktop platforms because they use:
-- Wine (for autotune.exe vocoder effects)
-- System-level audio processing
-- Large memory allocations
-
-On mobile/web, these effects may show a limited version or be disabled.
-
-### FFmpeg Commands
-
-All effects are powered by FFmpeg through the `ffmpeg_kit_flutter` package. The original NotSoBot shell commands have been converted to pure FFmpeg filter chains for cross-platform compatibility.
-
-### Video Output Encoding
-
-Output videos are optimized for sharing:
-- **Video**: H.264 (libx264) with preset `medium`
-- **Audio**: AAC at 192kbps
-- **Container**: MP4 with `-movflags +faststart` for web streaming
-- **Resolution**: Maintains original (or custom via settings)
-
-This ensures videos will embed properly in Discord, Twitter, and other platforms.
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-flutter test
-
-# Run with coverage
-flutter test --coverage
-
-# Run specific test file
-flutter test test/models/effects_test.dart
-```
-
-## 🔄 CI/CD
-
-This project uses GitHub Actions for continuous integration:
-
-- **CI Workflow**: Runs on every push/PR to `main` and `develop`
-  - Code formatting check
-  - Static analysis
-  - Unit tests
-  - Debug build verification
-
-- **Build Workflow**: Runs on version tags (`v*`)
-  - Builds for all 6 platforms
-  - Creates GitHub Release with all artifacts
-  - Auto-generates release notes
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/new-effect`
-3. Make your changes and add tests
-4. Run tests: `flutter test`
-5. Format code: `dart format .`
-6. Commit your changes: `git commit -am 'Add new effect'`
-7. Push to the branch: `git push origin feature/new-effect`
-8. Submit a Pull Request
-
-### Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/srle-studio.git
-cd srle-studio
-
-# Add upstream remote
-git remote add upstream https://github.com/1ajh/srle-studio.git
-
-# Install dependencies
-flutter pub get
-
-# Run the app
-flutter run -d chrome  # or windows, macos, linux
-```
-
-## 📜 Credits
-
-- **AJH** - Original NotSoBot tags and app development
-- **GanerCodes** - AutotuneBot/autotune.exe
-- **FFmpeg** - Video processing engine
-- **Flutter** - Cross-platform framework
-- **flutter_ffmpeg** - FFmpeg bindings for Flutter
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  Made with ❤️ by AJH
-  <br>
-  <a href="https://github.com/1ajh/srle-studio/issues">Report Bug</a>
-  ·
-  <a href="https://github.com/1ajh/srle-studio/issues">Request Feature</a>
-  ·
-  <a href="https://github.com/1ajh/srle-studio/discussions">Discussions</a>
-</p>
+MIT License, see [LICENSE](LICENSE).

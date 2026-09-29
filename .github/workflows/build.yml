@@ -2,360 +2,133 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  FLUTTER_VERSION: '3.47.5'
+
 jobs:
-  build-android:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Recreate Android platform
-        run: |
-          rm -rf android
-          flutter create --platforms=android --org com.ajh --project-name video_effects_studio .
-      
-      - name: Set Android SDK version
-        run: |
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/g' android/app/build.gradle
-      
-      - name: Build APK
-        run: flutter build apk --release
-      
-      - name: Build App Bundle
-        run: flutter build appbundle --release
-      
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-      
-      - name: Upload App Bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-aab
-          path: build/app/outputs/bundle/release/app-release.aab
-
-  build-ios:
-    runs-on: macos-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Recreate iOS platform
-        run: |
-          rm -rf ios
-          flutter create --platforms=ios --org com.ajh --project-name video_effects_studio .
-      
-      - name: Set iOS deployment target
-        run: |
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' ios/Runner.xcodeproj/project.pbxproj
-          # Update the existing platform line in Podfile instead of prepending
-          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '13.0'/g" ios/Podfile
-      
-      - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign
-      
-      - name: Archive IPA
-        run: |
-          cd build/ios/iphoneos
-          mkdir Payload
-          cp -r Runner.app Payload/
-          zip -r ../../../VideoEffectsStudio-ios.ipa Payload
-      
-      - name: Upload iOS Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build
-          path: VideoEffectsStudio-ios.ipa
-
-  build-macos:
-    runs-on: macos-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Enable macOS
-        run: flutter config --enable-macos-desktop
-      
-      - name: Recreate macOS platform
-        run: |
-          rm -rf macos
-          flutter create --platforms=macos --org com.ajh --project-name video_effects_studio .
-      
-      - name: Set macOS deployment target
-        run: |
-          sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]*/MACOSX_DEPLOYMENT_TARGET = 10.15/g' macos/Runner.xcodeproj/project.pbxproj
-          # Update the existing platform line in Podfile instead of prepending
-          sed -i '' "s/platform :osx, '[0-9.]*'/platform :osx, '10.15'/g" macos/Podfile
-      
-      - name: Download FFmpeg for macOS
-        run: |
-          # Install FFmpeg via brew and copy the binary
-          brew install ffmpeg
-          mkdir -p ffmpeg-bin
-          cp $(which ffmpeg) ffmpeg-bin/
-          cp $(which ffprobe) ffmpeg-bin/
-          # Make them standalone by copying required dylibs (or use static build)
-          # For now, we'll note that users may need FFmpeg
-          ls -la ffmpeg-bin/
-      
-      - name: Build macOS
-        run: flutter build macos --release
-      
-      - name: Bundle FFmpeg with app
-        run: |
-          # Copy FFmpeg into the app bundle's MacOS directory
-          APP_PATH="build/macos/Build/Products/Release/video_effects_studio.app"
-          mkdir -p "$APP_PATH/Contents/MacOS/bin"
-          cp ffmpeg-bin/ffmpeg "$APP_PATH/Contents/MacOS/bin/" || true
-          cp ffmpeg-bin/ffprobe "$APP_PATH/Contents/MacOS/bin/" || true
-          ls -la "$APP_PATH/Contents/MacOS/" || true
-      
-      - name: Create DMG
-        run: |
-          brew install create-dmg
-          create-dmg \
-            --volname "Video Effects Studio" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --app-drop-link 450 185 \
-            "VideoEffectsStudio-macos.dmg" \
-            "build/macos/Build/Products/Release/" || true
-      
-      - name: Fallback - Create ZIP
-        if: always()
-        run: |
-          cd build/macos/Build/Products/Release
-          zip -r ../../../../../VideoEffectsStudio-macos.zip *.app || true
-      
-      - name: Upload macOS Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: |
-            VideoEffectsStudio-macos.dmg
-            VideoEffectsStudio-macos.zip
-          if-no-files-found: warn
-
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Enable Windows
-        run: flutter config --enable-windows-desktop
-      
-      - name: Recreate Windows platform
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+
+      - name: Bundle FFmpeg
         shell: pwsh
         run: |
-          Remove-Item -Recurse -Force windows -ErrorAction SilentlyContinue
-          flutter create --platforms=windows --org com.ajh --project-name video_effects_studio .
-      
-      - name: Download FFmpeg for Windows
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-temp
+          $bin = (Get-ChildItem ffmpeg-temp -Directory | Select-Object -First 1).FullName + "\bin"
+          Copy-Item "$bin\ffmpeg.exe", "$bin\ffprobe.exe" -Destination build\windows\x64\runner\Release\
+          & build\windows\x64\runner\Release\ffmpeg.exe -hide_banner -version | Select-Object -First 1
+
+      - name: Package
         shell: pwsh
-        run: |
-          # Download FFmpeg essentials build (smaller, contains what we need)
-          $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-          Write-Host "Downloading FFmpeg from $ffmpegUrl"
-          Invoke-WebRequest -Uri $ffmpegUrl -OutFile ffmpeg.zip
-          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-temp
-          # Find and copy ffmpeg.exe and ffprobe.exe
-          $ffmpegDir = Get-ChildItem -Path ffmpeg-temp -Directory | Select-Object -First 1
-          New-Item -ItemType Directory -Force -Path "ffmpeg-bin"
-          Copy-Item "$($ffmpegDir.FullName)/bin/ffmpeg.exe" -Destination "ffmpeg-bin/"
-          Copy-Item "$($ffmpegDir.FullName)/bin/ffprobe.exe" -Destination "ffmpeg-bin/"
-          Write-Host "FFmpeg binaries ready in ffmpeg-bin/"
-          Get-ChildItem ffmpeg-bin/
-      
-      - name: Build Windows
-        run: flutter build windows --release
-      
-      - name: Bundle FFmpeg with app
-        shell: pwsh
-        run: |
-          Copy-Item "ffmpeg-bin/ffmpeg.exe" -Destination "build/windows/x64/runner/Release/"
-          Copy-Item "ffmpeg-bin/ffprobe.exe" -Destination "build/windows/x64/runner/Release/"
-          Write-Host "Contents of release folder:"
-          Get-ChildItem "build/windows/x64/runner/Release/"
-      
-      - name: Create Archive
-        run: |
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath VideoEffectsStudio-windows.zip
-      
-      - name: Upload Windows Build
-        uses: actions/upload-artifact@v4
+        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath VideoEffectsStudio-windows.zip
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: windows-zip
+          name: windows
           path: VideoEffectsStudio-windows.zip
 
   build-linux:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Linux dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libglib2.0-dev
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Enable Linux
-        run: flutter config --enable-linux-desktop
-      
-      - name: Recreate Linux platform
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build linux --release
+
+      - name: Bundle FFmpeg
         run: |
-          rm -rf linux
-          flutter create --platforms=linux --org com.ajh --project-name video_effects_studio .
-          flutter pub get
-      
-      - name: Download FFmpeg for Linux
-        run: |
-          # Download FFmpeg static build from BtbN (more reliable)
-          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" -o ffmpeg.tar.xz
-          mkdir ffmpeg-temp
-          tar -xf ffmpeg.tar.xz -C ffmpeg-temp --strip-components=1
-          mkdir -p ffmpeg-bin
-          cp ffmpeg-temp/bin/ffmpeg ffmpeg-bin/
-          cp ffmpeg-temp/bin/ffprobe ffmpeg-bin/
-          chmod +x ffmpeg-bin/*
-          ls -la ffmpeg-bin/
-      
-      - name: Build Linux
-        run: flutter build linux --release
-      
-      - name: Bundle FFmpeg with app
-        run: |
-          cp ffmpeg-bin/ffmpeg build/linux/x64/release/bundle/
-          cp ffmpeg-bin/ffprobe build/linux/x64/release/bundle/
-          chmod +x build/linux/x64/release/bundle/ffmpeg
-          chmod +x build/linux/x64/release/bundle/ffprobe
-          ls -la build/linux/x64/release/bundle/
-      
-      - name: Create tarball
-        run: |
-          cd build/linux/x64/release/bundle
-          tar -czvf ../../../../../VideoEffectsStudio-linux.tar.gz *
-      
-      - name: Upload Linux Build
-        uses: actions/upload-artifact@v4
+          curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" -o ffmpeg.tar.xz
+          mkdir ffmpeg-temp && tar -xf ffmpeg.tar.xz -C ffmpeg-temp --strip-components=1
+          install -m 755 ffmpeg-temp/bin/ffmpeg ffmpeg-temp/bin/ffprobe build/linux/x64/release/bundle/
+          build/linux/x64/release/bundle/ffmpeg -hide_banner -version | head -1
+
+      - name: Package
+        run: tar -czf VideoEffectsStudio-linux.tar.gz -C build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: linux-tar
+          name: linux
           path: VideoEffectsStudio-linux.tar.gz
 
-  build-web:
-    runs-on: ubuntu-latest
+  build-macos:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Build Web
-        run: flutter build web --release --web-renderer canvaskit
-      
-      - name: Create Archive
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release
+
+      - name: Bundle universal FFmpeg
         run: |
-          cd build/web
-          zip -r ../../VideoEffectsStudio-web.zip *
-      
-      - name: Upload Web Build
-        uses: actions/upload-artifact@v4
+          set -e
+          mkdir -p ff/arm64 ff/amd64
+          for arch in arm64 amd64; do
+            for tool in ffmpeg ffprobe; do
+              curl -fsSL "https://ffmpeg.martin-riedl.de/redirect/latest/macos/$arch/release/$tool.zip" -o "ff/$arch/$tool.zip"
+              unzip -o -q "ff/$arch/$tool.zip" -d "ff/$arch"
+            done
+          done
+          APP="build/macos/Build/Products/Release/Video Effects Studio.app"
+          for tool in ffmpeg ffprobe; do
+            lipo -create -output "$APP/Contents/MacOS/$tool" "ff/arm64/$tool" "ff/amd64/$tool"
+            chmod +x "$APP/Contents/MacOS/$tool"
+          done
+          "$APP/Contents/MacOS/ffmpeg" -hide_banner -version | head -1
+          # Re-sign (ad hoc) after adding binaries to the bundle.
+          codesign --force --deep --sign - "$APP"
+
+      - name: Package DMG
+        run: |
+          mkdir dmg
+          cp -R "build/macos/Build/Products/Release/Video Effects Studio.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Video Effects Studio" -srcfolder dmg -ov -format UDZO VideoEffectsStudio-macos.dmg
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: web-zip
-          path: VideoEffectsStudio-web.zip
+          name: macos
+          path: VideoEffectsStudio-macos.dmg
 
   release:
-    needs: [build-windows, build-web]
+    needs: [build-windows, build-linux, build-macos]
+    if: always() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && !failure()
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/windows-zip/VideoEffectsStudio-windows.zip
-            artifacts/web-zip/VideoEffectsStudio-web.zip
-            artifacts/android-apk/app-release.apk
-            artifacts/ios-build/VideoEffectsStudio-ios.ipa
-            artifacts/macos-build/*
-            artifacts/linux-tar/VideoEffectsStudio-linux.tar.gz
+            artifacts/windows/VideoEffectsStudio-windows.zip
+            artifacts/linux/VideoEffectsStudio-linux.tar.gz
+            artifacts/macos/VideoEffectsStudio-macos.dmg
           fail_on_unmatched_files: false
-          draft: false
-          prerelease: false
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
