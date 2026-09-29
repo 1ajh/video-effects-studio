@@ -18,6 +18,8 @@ abstract final class AppColors {
   static const accent = Color(0xFF7C5CFF);
   static const accentHi = Color(0xFF9B82FF);
   static const compilation = Color(0xFF22D3EE);
+  static const sparta = Color(0xFFFF5A36);
+  static const spartaHi = Color(0xFFFF8A5C);
   static const warn = Color(0xFFF5A524);
   static const danger = Color(0xFFF43F5E);
   static const success = Color(0xFF22C55E);

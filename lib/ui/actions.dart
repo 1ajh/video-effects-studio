@@ -14,6 +14,7 @@ import '../state/preview_controller.dart';
 import '../state/project_controller.dart';
 import '../state/render_queue.dart';
 import '../state/settings_controller.dart';
+import '../state/sparta_controller.dart';
 import 'widgets/common.dart';
 
 /// User-level commands shared by buttons, menus and keyboard shortcuts.
@@ -52,10 +53,44 @@ class StudioActions {
 
   /// Renders whatever the current mode is about.
   void render() {
-    if (_read<EditorController>().mode == EditorMode.compilation) {
-      renderCompilation();
-    } else {
-      renderSingle();
+    switch (_read<EditorController>().mode) {
+      case EditorMode.compilation:
+        renderCompilation();
+      case EditorMode.sparta:
+        renderSparta();
+      case EditorMode.single:
+        renderSingle();
+    }
+  }
+
+  /// Renders the generated Sparta remix (video, stems and MIDI as chosen).
+  void renderSparta() {
+    if (!_checkEngine()) return;
+    final sparta = _read<SpartaController>();
+    if (!sparta.hasResult) {
+      showMessage(context, sparta.busy ? 'Still generating — one moment.' : 'Generate a remix first.');
+      return;
+    }
+    final settings = _read<SettingsController>();
+    _read<RenderQueue>().enqueue(
+      sparta.renderJob(
+        outDir: settings.outputDir,
+        output: settings.output,
+        stems: sparta.exportStems,
+        midi: sparta.exportMidi,
+      ),
+    );
+    _openQueue();
+  }
+
+  /// Routes dropped/opened files: base projects and media for Sparta mode.
+  void addSpartaPaths(List<String> paths) {
+    final sparta = _read<SpartaController>();
+    final projects = paths.where(isProjectFile).toList();
+    if (projects.isNotEmpty) sparta.setProject(projects.first);
+    final added = sparta.addSources(paths.where((p) => !isProjectFile(p)));
+    if (projects.isEmpty && added == 0) {
+      showMessage(context, 'Drop videos/audio for sources, or an .flp/.flm/.mid base.', error: true);
     }
   }
 

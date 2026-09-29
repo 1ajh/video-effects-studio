@@ -5,6 +5,7 @@ import '../../state/compilation_controller.dart';
 import '../../state/editor_controller.dart';
 import '../../state/project_controller.dart';
 import '../../state/render_queue.dart';
+import '../../state/sparta_controller.dart';
 import '../../state/update_controller.dart';
 import '../actions.dart';
 import '../dialogs/help_dialog.dart';
@@ -24,8 +25,16 @@ class TopBar extends StatelessWidget {
     final queue = context.watch<RenderQueue>();
     final updates = context.watch<UpdateController>();
     final project = context.watch<ProjectController>();
+    final sparta = context.watch<SpartaController>();
     final compMode = editor.mode == EditorMode.compilation;
-    final canRender = project.active?.info != null && (compMode ? !comp.isEmpty : editor.selected != null);
+    final spartaMode = editor.mode == EditorMode.sparta;
+    final canRender = spartaMode
+        ? sparta.hasResult && !sparta.busy
+        : project.active?.info != null && (compMode ? !comp.isEmpty : editor.selected != null);
+    // Narrow windows: drop the title, then shorten the mode labels.
+    final width = MediaQuery.sizeOf(context).width;
+    final showTitle = width >= 1500;
+    final short = width < 1500;
 
     return Container(
       height: 54,
@@ -49,24 +58,34 @@ class TopBar extends StatelessWidget {
             ),
             child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
           ),
-          const SizedBox(width: 10),
-          const Text(
-            'Video Effects Studio',
-            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, letterSpacing: -0.1),
-          ),
-          const SizedBox(width: 24),
+          if (showTitle) ...[
+            const SizedBox(width: 10),
+            const Text(
+              'Video Effects Studio',
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, letterSpacing: -0.1),
+            ),
+          ],
+          const SizedBox(width: 20),
           SegmentedButton<EditorMode>(
             showSelectedIcon: false,
             segments: [
-              const ButtonSegment(
+              ButtonSegment(
                 value: EditorMode.single,
-                icon: Icon(Icons.auto_awesome_outlined, size: 15),
-                label: Text('Single effect'),
+                icon: const Icon(Icons.auto_awesome_outlined, size: 15),
+                label: Text(short ? 'Single' : 'Single effect'),
+                tooltip: 'Single effect (Ctrl+1)',
               ),
               ButtonSegment(
                 value: EditorMode.compilation,
                 icon: const Icon(Icons.view_timeline_outlined, size: 15),
                 label: Text(comp.isEmpty ? 'Compilation' : 'Compilation (${comp.length})'),
+                tooltip: 'Compilation (Ctrl+2)',
+              ),
+              ButtonSegment(
+                value: EditorMode.sparta,
+                icon: const Icon(Icons.local_fire_department_outlined, size: 15),
+                label: Text(short ? 'Sparta' : 'Sparta Remix'),
+                tooltip: 'Sparta Remix generator (Ctrl+3)',
               ),
             ],
             selected: {editor.mode},
@@ -100,7 +119,7 @@ class TopBar extends StatelessWidget {
           const SizedBox(width: 6),
           _QueueButton(queue: queue),
           const SizedBox(width: 10),
-          _RenderButton(enabled: canRender, compMode: compMode, count: comp.length, clips: project.sources.length),
+          _RenderButton(enabled: canRender, mode: editor.mode, count: comp.length, clips: project.sources.length),
         ],
       ),
     );
@@ -153,25 +172,39 @@ class _QueueButton extends StatelessWidget {
 }
 
 class _RenderButton extends StatelessWidget {
-  const _RenderButton({required this.enabled, required this.compMode, required this.count, required this.clips});
+  const _RenderButton({required this.enabled, required this.mode, required this.count, required this.clips});
   final bool enabled;
-  final bool compMode;
+  final EditorMode mode;
   final int count;
   final int clips;
 
   @override
   Widget build(BuildContext context) {
+    final compMode = mode == EditorMode.compilation;
+    final spartaMode = mode == EditorMode.sparta;
     final button = FilledButton.icon(
       style: FilledButton.styleFrom(
-        backgroundColor: compMode ? AppColors.compilation : AppColors.accent,
+        backgroundColor: spartaMode
+            ? AppColors.sparta
+            : compMode
+            ? AppColors.compilation
+            : AppColors.accent,
         foregroundColor: compMode ? Colors.black : Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
       onPressed: enabled ? () => StudioActions(context).render() : null,
       icon: const Icon(Icons.rocket_launch_outlined, size: 17),
-      label: Text(compMode ? 'Render compilation' : 'Render'),
+      label: Text(
+        MediaQuery.sizeOf(context).width < 1250
+            ? 'Render'
+            : spartaMode
+            ? 'Render remix'
+            : compMode
+            ? 'Render compilation'
+            : 'Render',
+      ),
     );
-    if (compMode || clips < 2) {
+    if (compMode || spartaMode || clips < 2) {
       return Tooltip(message: 'Ctrl+Enter', child: button);
     }
     // Batch: offer "all clips" next to the main button.

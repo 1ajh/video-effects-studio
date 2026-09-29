@@ -11,6 +11,8 @@ import 'state/preview_controller.dart';
 import 'state/project_controller.dart';
 import 'state/render_queue.dart';
 import 'state/settings_controller.dart';
+import 'state/sparta_controller.dart';
+import 'state/sparta_playback.dart';
 import 'state/store.dart';
 import 'state/thumbnail_service.dart';
 import 'state/update_controller.dart';
@@ -61,6 +63,8 @@ class _StudioAppState extends State<StudioApp> {
     settings: settings,
   );
   late final playback = PlaybackController(available: widget.playerAvailable, project: project, preview: preview);
+  late final sparta = SpartaController(engine);
+  late final spartaPlayback = SpartaPlayback(available: widget.playerAvailable);
 
   @override
   void initState() {
@@ -81,6 +85,8 @@ class _StudioAppState extends State<StudioApp> {
   @override
   void dispose() {
     playback.dispose();
+    spartaPlayback.dispose();
+    sparta.dispose();
     preview.dispose();
     queue.dispose();
     super.dispose();
@@ -102,6 +108,8 @@ class _StudioAppState extends State<StudioApp> {
         ChangeNotifierProvider.value(value: updates),
         ChangeNotifierProvider.value(value: preview),
         ChangeNotifierProvider.value(value: playback),
+        ChangeNotifierProvider.value(value: sparta),
+        ChangeNotifierProvider.value(value: spartaPlayback),
       ],
       child: MaterialApp(
         title: 'Video Effects Studio',

@@ -21,6 +21,7 @@ import '../pages/settings_page.dart';
 import '../platform_actions.dart';
 import '../preview/preview_panel.dart';
 import '../preview/source_strip.dart';
+import '../sparta/sparta_workspace.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'queue_drawer.dart';
@@ -129,6 +130,8 @@ class _EditorShellState extends State<EditorShell> {
         editor.setMode(EditorMode.single);
       } else if (key == LogicalKeyboardKey.digit2) {
         editor.setMode(EditorMode.compilation);
+      } else if (key == LogicalKeyboardKey.digit3) {
+        editor.setMode(EditorMode.sparta);
       } else if (key == LogicalKeyboardKey.keyH) {
         Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HistoryPage()));
       } else if (key == LogicalKeyboardKey.comma) {
@@ -150,6 +153,7 @@ class _EditorShellState extends State<EditorShell> {
       return KeyEventResult.handled;
     }
     if (_typing) return KeyEventResult.ignored;
+    if (editor.mode == EditorMode.sparta) return KeyEventResult.ignored;
 
     final playback = context.read<PlaybackController>();
     final preview = context.read<PreviewController>();
@@ -176,7 +180,8 @@ class _EditorShellState extends State<EditorShell> {
 
   @override
   Widget build(BuildContext context) {
-    final compMode = context.select<EditorController, bool>((e) => e.mode == EditorMode.compilation);
+    final mode = context.select<EditorController, EditorMode>((e) => e.mode);
+    final compMode = mode == EditorMode.compilation;
     final hasClips = context.select<ProjectController, bool>((p) => !p.isEmpty);
     final engineStatus = context.select<EngineController, EngineStatus>((e) => e.status);
 
@@ -192,7 +197,12 @@ class _EditorShellState extends State<EditorShell> {
           onDragExited: (_) => setState(() => _dragging = false),
           onDragDone: (details) {
             setState(() => _dragging = false);
-            StudioActions(context).addPaths(details.files.map((f) => f.path).toList());
+            final paths = details.files.map((f) => f.path).toList();
+            if (mode == EditorMode.sparta) {
+              StudioActions(context).addSpartaPaths(paths);
+            } else {
+              StudioActions(context).addPaths(paths);
+            }
           },
           child: Stack(
             children: [
@@ -200,24 +210,27 @@ class _EditorShellState extends State<EditorShell> {
                 children: [
                   const TopBar(),
                   if (engineStatus == EngineStatus.missing) const _FfmpegBanner(),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        SizedBox(width: 330, child: EffectBrowser(searchFocus: _searchFocus)),
-                        const VerticalDivider(width: 1),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              if (hasClips) const SourceStrip(),
-                              const Expanded(child: PreviewPanel()),
-                            ],
+                  if (mode == EditorMode.sparta)
+                    const Expanded(child: SpartaWorkspace())
+                  else
+                    Expanded(
+                      child: Row(
+                        children: [
+                          SizedBox(width: 330, child: EffectBrowser(searchFocus: _searchFocus)),
+                          const VerticalDivider(width: 1),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                if (hasClips) const SourceStrip(),
+                                const Expanded(child: PreviewPanel()),
+                              ],
+                            ),
                           ),
-                        ),
-                        const VerticalDivider(width: 1),
-                        const SizedBox(width: 350, child: InspectorPanel()),
-                      ],
+                          const VerticalDivider(width: 1),
+                          const SizedBox(width: 350, child: InspectorPanel()),
+                        ],
+                      ),
                     ),
-                  ),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 220),
                     curve: Curves.easeOutCubic,
@@ -229,7 +242,7 @@ class _EditorShellState extends State<EditorShell> {
                   const StatusBar(),
                 ],
               ),
-              if (_dragging) const _DropOverlay(),
+              if (_dragging) _DropOverlay(sparta: mode == EditorMode.sparta),
             ],
           ),
         ),
@@ -279,7 +292,8 @@ class _FfmpegBanner extends StatelessWidget {
 }
 
 class _DropOverlay extends StatelessWidget {
-  const _DropOverlay();
+  const _DropOverlay({this.sparta = false});
+  final bool sparta;
 
   @override
   Widget build(BuildContext context) {
@@ -291,16 +305,19 @@ class _DropOverlay extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.accent, width: 2),
-              color: AppColors.accent.withValues(alpha: 0.08),
+              border: Border.all(color: sparta ? AppColors.sparta : AppColors.accent, width: 2),
+              color: (sparta ? AppColors.sparta : AppColors.accent).withValues(alpha: 0.08),
             ),
-            child: const Center(
+            child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.file_download_outlined, size: 48, color: AppColors.accentHi),
-                  SizedBox(height: 12),
-                  Text('Drop to add clips', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Icon(Icons.file_download_outlined, size: 48, color: sparta ? AppColors.spartaHi : AppColors.accentHi),
+                  const SizedBox(height: 12),
+                  Text(
+                    sparta ? 'Drop sources, or an .flp / .flm / .mid base' : 'Drop to add clips',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
                 ],
               ),
             ),

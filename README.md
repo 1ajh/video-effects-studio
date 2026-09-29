@@ -1,6 +1,6 @@
 # Video Effects Studio
 
-A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, Sparta pitches, glitches, and 140+ more. Preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos.
+A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, Sparta pitches, glitches, and 140+ more. Preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos. And the **Sparta Remix Generator** turns any video of someone talking into a full, mixed and mastered Sparta remix, video included.
 
 ![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-7C5CFF)
 ![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
@@ -18,12 +18,28 @@ A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, C
 - **Before / after preview**: every effect is rendered as a short preview automatically. Watch it on its own or side by side with the original.
 - **Effect thumbnails**: the effect list shows each effect applied to *your* clip.
 - **Compilations**: effects play one after another in order. Add effects one by one, a whole category, **every effect**, or **N random** ones; shuffle and drag to reorder. Optionally play the original first, and label each segment with a **name overlay** or a **title card**. Each item keeps its own settings.
+- **Sparta Remix Generator** (see below)
 - **Trim** any range before rendering, with I/O shortcuts at the playhead.
 - **Export** MP4 (H.264/AAC, plays in Discord etc.), WebM, GIF, MP3 or WAV, at High / Balanced / Small quality with an optional resolution cap.
 - **Batch**: render one effect over every loaded clip.
 - **Presets, favorites and recents**.
 - **Custom effects**: write your own FFmpeg filter chains, test them in place, and use them anywhere (compilations included).
 - **Render queue** with progress, ETA, cancel, "show in folder", and a persistent history.
+
+## Sparta Remix Generator
+
+The third mode (`Ctrl+3`) builds a complete Sparta remix from your sources, with no manual chopping:
+
+- **Sample finding**: every source is analysed (pitch tracking, onsets, spectral shape, voicing) and ranked candidates are picked for each lane: a sustained vowel for **pitch**, a punchy syllable for the **chop**, low thumps / cracks / hisses for **kick, snare and hat**, and a clean spoken line for the **quote**. With several sources the lanes use different material and pitch/chop alternate between two voices.
+- **Correction and enhancement**: pitch and chop samples are pitch-corrected to D with TD-PSOLA (octave-error repair, formant-preserving), and pitch samples are sustained so any note length works. Chops get a *Chorus Crisp* doubled attack, drum samples can be reinforced with a synthesized body, and everything is trimmed, de-clicked and normalized.
+- **Bases**:
+  - **Built-in**: three procedurally composed bases (Classic 140, Hyper 160, Venom 150 BPM) in the Sparta idiom: D Phrygian, the D–E♭–C–E♭ movement, and intro/quote, chorus, dundundenden, epicness, madness, awesomeness and outro sections. Toggle sections, pick a length, re-roll any section or the whole base.
+  - **Your projects**: FL Studio `.flp`, FL Studio Mobile `.flm` and MIDI. Name the placeholder tracks (*Pitch*, *Chop*, *Quote*…) or map them in the app; with no sample lanes, a chart is composed over the project's own chords and drums. Add the base's rendered audio (auto-aligned to the chart) or let the app re-synthesize the project.
+  - **Any base audio**: tempo, the bar grid, the key and the chord of every bar are detected, and the chart is composed over them.
+- **Arrangement and mix**: sampler-style transposition on every chart note, monophonic choke, a bus per lane (EQ, compression, reverb, width), the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** (soft-clipped, loud) master.
+- **Review before rendering**: play the mix, audition every sample, step through candidates, nudge sample edges, toggle a second sample per lane, adjust lane levels, re-roll sections. The preview updates on its own.
+- **Visuals** in four presets (Classic grid, Modern, Chaos/YTPMV, Minimal): every hit cuts to its source footage at the transposed speed, with flips, hue shifts and punch-zooms per section. Audio-only sources become animated waveform cards.
+- **Exports**: the video (or MP3/WAV), plus optional **stems** (base, pitch, chop, drums, quote) and **MIDI** (the sample chart, and the base parts when composed).
 
 > Loud effects are loud on purpose: authentic volume, no limiter. They carry a 🔊 badge.
 
@@ -46,6 +62,8 @@ Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobil
 3. Tweak **parameters** in the inspector on the right, and set the **output** format and folder below them.
 4. **Render** (`Ctrl+Enter`). Jobs appear in the queue (`Ctrl+Q`).
 
+**Sparta Remix mode** (`Ctrl+3`): add sources, pick a base, press **Generate remix**, review, then **Render remix**.
+
 **Compilation mode** (`Ctrl+2`): add effects with the ➕ button, double-click, or `Ctrl+D`, or use *All effects / Add category / Random* in the dock at the bottom. Click a card to edit that item, drag to reorder, and choose *Original first* and a label style. Then render.
 
 ### Shortcuts
@@ -59,7 +77,7 @@ Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobil
 | `I` / `O` | Set trim in / out |
 | `Ctrl+F`, `↑` `↓` | Search / step through effects |
 | `Ctrl+D` | Add effect to the compilation |
-| `Ctrl+1` / `Ctrl+2` | Single effect / Compilation mode |
+| `Ctrl+1` / `2` / `3` | Single effect / Compilation / Sparta Remix mode |
 | `1` `2` `3` | Original / Effect / Split view |
 | `Ctrl+H`, `Ctrl+,`, `F1` | History, Settings, Help |
 
@@ -81,12 +99,12 @@ sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev lib
 ### Tests
 
 ```bash
-flutter test --exclude-tags ffmpeg   # unit + widget tests (~500)
-flutter test --tags ffmpeg           # renders every effect with real FFmpeg
+flutter test --exclude-tags ffmpeg   # unit + widget tests (~540)
+flutter test --tags ffmpeg           # renders every effect and full Sparta remixes with real FFmpeg
 VFX_FFMPEG=/path/to/ffmpeg flutter test --tags ffmpeg   # against a specific build
 ```
 
-The FFmpeg suite renders every effect on a clip with audio and on an odd-sized clip without audio. It also covers every output format, all compilation label modes, skipped-segment handling, previews and thumbnails. CI runs it against Ubuntu's FFmpeg 6.1, and it also passes on current FFmpeg master.
+The FFmpeg suite renders every effect on a clip with audio and on an odd-sized clip without audio, and runs the whole Sparta pipeline (sources → samples → built-in, MIDI and audio-only bases → mix → video in every visual preset). It also covers every output format, all compilation label modes, skipped-segment handling, previews and thumbnails. CI runs it against Ubuntu's FFmpeg 6.1, and it also passes on current FFmpeg master.
 
 ## How effects work
 
@@ -108,12 +126,16 @@ The command builder takes care of the boring parts: argument lists (no shell quo
 ```
 lib/
   core/        effects, FFmpeg command building, rendering (pure Dart, fully tested)
-  state/       controllers (project, editor, compilation, preview, queue, library, settings)
-  ui/          the editor: browser, preview, inspector, compilation dock, queue, pages
+    audio/     DSP: FFT, YIN, onsets, TD-PSOLA, filters, dynamics, synthesis
+    sparta/    sample finder, enhancer, composer, FLP/FLM/MIDI readers, beat & chord
+               analysis, arranger/mixer, visual renderer, pipeline engine
+  state/       controllers (project, editor, compilation, preview, queue, library, settings, sparta)
+  ui/          the editor: browser, preview, inspector, compilation dock, Sparta workspace, queue, pages
 ```
 
 ## Credits
 
+- Sparta techniques draw on the community's tools: PSOLA pitch correction as in Pet297's *PitchCorrector297*, Chorus Crisp and SlamShaper-style shaping from composition-cassidy's tools, and grid visuals like *Sparta Remix Visual Editor*
 - Effect recipes are inspired by the [Logo Editing Wiki](https://logo-editing.fandom.com/wiki/Category:Effects) community and the original NotSoBot tags by **AJH**
 - [FFmpeg](https://ffmpeg.org), [Flutter](https://flutter.dev), [media_kit](https://github.com/media-kit/media-kit), [Inter](https://rsms.me/inter/) (SIL OFL)
 

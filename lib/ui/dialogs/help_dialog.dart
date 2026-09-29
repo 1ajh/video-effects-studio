@@ -12,7 +12,7 @@ const shortcuts = <(String, String)>[
   ('Ctrl + F', 'Search effects'),
   ('↑ / ↓', 'Previous / next effect'),
   ('Ctrl + D', 'Add effect to the compilation'),
-  ('Ctrl + 1 / 2', 'Single effect / Compilation mode'),
+  ('Ctrl + 1 / 2 / 3', 'Single effect / Compilation / Sparta Remix mode'),
   ('1 / 2 / 3', 'Original / Effect / Split view'),
   ('Ctrl + H', 'Render history'),
   ('Ctrl + ,', 'Settings'),
@@ -61,6 +61,7 @@ Future<void> showHelpDialog(BuildContext context) => showDialog(
               'Effects marked with a speaker icon are loud on purpose (no limiter). Mind your ears.',
               'Hourglass effects (reverse etc.) hold the whole clip in memory; keep those clips short.',
               'Make your own effects with raw FFmpeg filters: the + button in the effect list.',
+              'Sparta Remix: more sources give more variety. Drop an .flp, .flm or .mid on the window to use it as the base.',
             ])
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),

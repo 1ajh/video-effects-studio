@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../core/effects/effect.dart';
 import 'library_controller.dart';
 
-enum EditorMode { single, compilation }
+enum EditorMode { single, compilation, sparta }
 
 /// Browser filter: everything, favorites, recents, or a category.
 @immutable
