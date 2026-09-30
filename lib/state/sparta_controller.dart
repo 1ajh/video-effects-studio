@@ -16,11 +16,13 @@ import '../core/sparta/composer.dart';
 import '../core/sparta/model.dart';
 import '../core/sparta/sample_finder.dart';
 import '../core/sparta/sample_processing.dart';
+import '../core/sparta/section_edits.dart';
 import '../core/sparta/sparta_engine.dart';
 import '../core/sparta/visual_renderer.dart';
 import 'engine_controller.dart';
 import 'project_controller.dart';
 import 'render_queue.dart';
+import 'store.dart';
 
 enum BaseMode {
   builtIn('Built-in', 'Procedurally composed Sparta bases'),
@@ -75,11 +77,12 @@ enum SpartaStage { idle, working, ready, failed }
 
 /// State and pipeline of the Sparta Remix mode.
 class SpartaController extends ChangeNotifier {
-  SpartaController(this._engine) {
+  SpartaController(this._engine, {Store? store}) : _store = store {
     _engine.addListener(_onEngine);
   }
 
   final EngineController _engine;
+  final Store? _store;
   SpartaEngine? _sparta;
 
   // --- sources -----------------------------------------------------------------
@@ -111,7 +114,13 @@ class SpartaController extends ChangeNotifier {
   double? manualOffset;
 
   String? audioBasePath;
-  double? bpmHint;
+
+  /// Tempo of an audio base set by the user instead of detected.
+  double? bpmOverride;
+
+  /// The user's section changes over the automatic result (saved per base
+  /// file for projects and audio bases).
+  SectionEdits edits = const SectionEdits();
 
   // --- options -----------------------------------------------------------------
   EnhanceOptions enhance = const EnhanceOptions();
@@ -254,17 +263,25 @@ class SpartaController extends ChangeNotifier {
   void setBaseMode(BaseMode m) {
     if (baseMode == m) return;
     baseMode = m;
+    _loadSaved();
     _baseChanged();
   }
 
   void setStyle(BaseStyle s) {
     style = s;
+    _clearBuiltInEdits();
     _baseChanged();
   }
 
   void setLength(RemixLength l) {
     length = l;
+    _clearBuiltInEdits();
     _baseChanged();
+  }
+
+  /// A different built-in plan no longer matches edits made to the old one.
+  void _clearBuiltInEdits() {
+    if (baseMode == BaseMode.builtIn) edits = const SectionEdits();
   }
 
   void toggleSection(SectionKind k) {
@@ -274,6 +291,7 @@ class SpartaController extends ChangeNotifier {
     } else {
       sections.add(k);
     }
+    _clearBuiltInEdits();
     _baseChanged();
   }
 
@@ -285,6 +303,7 @@ class SpartaController extends ChangeNotifier {
   void newVariation() {
     seed++;
     sectionSeeds.clear();
+    _clearBuiltInEdits();
     _baseChanged();
   }
 
@@ -296,6 +315,7 @@ class SpartaController extends ChangeNotifier {
     mapping = {};
     manualOffset = null;
     baseMode = BaseMode.project;
+    _loadSaved();
     notifyListeners();
     try {
       final c = await Future(() => SpartaEngine.readProject(path));
@@ -331,12 +351,116 @@ class SpartaController extends ChangeNotifier {
   void setAudioBase(String path) {
     audioBasePath = path;
     baseMode = BaseMode.audio;
+    _loadSaved();
     _baseChanged();
   }
 
-  void setBpmHint(double? bpm) {
-    bpmHint = bpm;
+  /// Uses [bpm] for the audio base instead of the detected tempo (null goes
+  /// back to detection). Bars move, so section edits start over.
+  void setBpm(double? bpm) {
+    final v = bpm == null || !bpm.isFinite || bpm < 40 || bpm > 400 ? null : (bpm * 100).roundToDouble() / 100;
+    if (v == bpmOverride) return;
+    bpmOverride = v;
+    edits = const SectionEdits();
+    _save();
     _baseChanged();
+  }
+
+  /// The audio base's current tempo (set or detected).
+  double? get audioBpm => bpmOverride ?? prepared?.analysis?.bpm;
+
+  void halveTempo() => setBpm(audioBpm == null ? null : audioBpm! / 2);
+  void doubleTempo() => setBpm(audioBpm == null ? null : audioBpm! * 2);
+
+  // ---------------------------------------------------------------------------
+  // Sections
+  // ---------------------------------------------------------------------------
+
+  PreparedBase? _auto;
+
+  List<Section> get currentSections => prepared?.base.sections ?? const [];
+
+  /// Whether sample notes of a section can be recomposed (not when the
+  /// project's own sample lanes are used).
+  bool get canRewriteSections => prepared?.base.canRewriteChart ?? false;
+
+  bool get sectionsEdited => !edits.isEmpty;
+
+  void relabelSection(int i, SectionKind kind, {bool rewrite = false}) =>
+      _edit(edits.relabel(currentSections, i, kind, rewrite: rewrite && canRewriteSections));
+  void renameSection(int i, String name) => _edit(edits.rename(currentSections, i, name));
+  void splitSection(int i, double beat) => _edit(edits.split(currentSections, i, beat));
+  void mergeSectionWithNext(int i) => _edit(edits.mergeWithNext(currentSections, i));
+  void moveSectionBoundary(int i, double beat) =>
+      _edit(edits.moveBoundary(currentSections, i, beat, prepared?.base.beatsPerBar ?? 4));
+
+  /// New sample notes for section [i] in its style.
+  void rerollSectionAt(int i) {
+    if (canRewriteSections) _edit(edits.reroll(currentSections, i));
+  }
+
+  /// Back to the automatic sections and notes.
+  void resetSections() => _edit(const SectionEdits());
+
+  void _edit(SectionEdits e) {
+    if (identical(e, edits) || prepared == null) return;
+    edits = e;
+    _save();
+    final auto = _auto;
+    if (auto != null) prepared = _withEdits(auto);
+    notifyListeners();
+    if (hasResult) _schedule(_remixOnly);
+  }
+
+  /// Uses [base] as the prepared (automatic) base, as the pipeline would.
+  @visibleForTesting
+  void debugUseBase(PreparedBase base) {
+    _auto = base;
+    prepared = _withEdits(base);
+    notifyListeners();
+  }
+
+  PreparedBase _withEdits(PreparedBase auto) {
+    if (edits.isEmpty) return auto;
+    return PreparedBase(
+      base: edits.apply(auto.base, style: style, seed: seed),
+      audio: auto.audio,
+      score: auto.score,
+      chart: auto.chart,
+      analysis: auto.analysis,
+    );
+  }
+
+  // --- saved per base file -----------------------------------------------------
+
+  String? get _savedKey => switch (baseMode) {
+    BaseMode.builtIn => null,
+    BaseMode.project => projectPath == null ? null : 'sparta.base.$projectPath',
+    BaseMode.audio => audioBasePath == null ? null : 'sparta.base.$audioBasePath',
+  };
+
+  void _loadSaved() {
+    edits = const SectionEdits();
+    if (baseMode == BaseMode.audio) bpmOverride = null;
+    final key = _savedKey;
+    final j = key == null ? null : _store?.readJson<Map<String, dynamic>>(key);
+    if (j == null) return;
+    edits = SectionEdits.fromJson(j['edits']);
+    final bpm = j['bpm'];
+    if (baseMode == BaseMode.audio && bpm is num) bpmOverride = bpm.toDouble();
+  }
+
+  void _save() {
+    final key = _savedKey, store = _store;
+    if (key == null || store == null) return;
+    if (edits.isEmpty && bpmOverride == null) {
+      store.remove(key);
+      return;
+    }
+    store.writeJson(key, {
+      'edits': edits.toJson(),
+      if (baseMode == BaseMode.audio && bpmOverride != null) 'bpm': bpmOverride,
+    });
   }
 
   void _baseChanged() {
@@ -622,7 +746,7 @@ class SpartaController extends ChangeNotifier {
       ),
       BaseMode.audio => AudioBaseSource(
         audioPath: audioBasePath!,
-        bpmHint: bpmHint,
+        bpm: bpmOverride,
         transpose: transpose,
         style: style,
         seed: seed,
@@ -630,7 +754,8 @@ class SpartaController extends ChangeNotifier {
     };
     final base = await eng.prepareBase(source);
     if (t != _token) return;
-    prepared = base;
+    _auto = base;
+    prepared = _withEdits(base);
     if (remix && processed.isNotEmpty) await _remixOnly(t);
   }
 

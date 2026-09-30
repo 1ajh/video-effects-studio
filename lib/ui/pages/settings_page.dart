@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +8,7 @@ import '../../state/project_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/update_controller.dart';
 import '../dialogs/preset_dialog.dart';
+import '../file_dialogs.dart';
 import '../platform_actions.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -110,7 +110,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                       OutlinedButton(
                         onPressed: () async {
-                          final files = await FilePicker.pickFiles(dialogTitle: 'Locate the ffmpeg executable');
+                          final files = await pickFilesSafely(context, dialogTitle: 'Locate the ffmpeg executable');
                           final path = files.isEmpty ? null : files.first.path;
                           if (path != null) {
                             settings.setFfmpegOverride(path);
@@ -138,7 +138,7 @@ class SettingsPage extends StatelessWidget {
                         TextButton(onPressed: () => openFolder(settings.outputDir), child: const Text('Open')),
                         OutlinedButton(
                           onPressed: () async {
-                            final dir = await FilePicker.getDirectoryPath(initialDirectory: settings.outputDir);
+                            final dir = await pickDirectorySafely(context, initialDirectory: settings.outputDir);
                             if (dir != null) settings.setOutputDir(dir);
                           },
                           child: const Text('Change…'),

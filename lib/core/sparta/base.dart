@@ -18,6 +18,8 @@ class SpartaBase {
     this.beatsPerBar = 4,
     this.barRoots = const [],
     this.notes = '',
+    this.chartShift,
+    this.composedRoles = const {},
   });
 
   final String id;
@@ -46,6 +48,17 @@ class SpartaBase {
 
   /// Free-form import notes (e.g. how lanes were mapped).
   final String notes;
+
+  /// Semitones the composed chart's tonal notes were shifted by (the base's
+  /// key relative to D, plus any transpose); null when the chart came from
+  /// the project itself and can't be rewritten.
+  final int? chartShift;
+
+  /// Lanes written by the composer (the rest follow the base, e.g. drums
+  /// locked to a project's own kick and snare).
+  final Set<SampleRole> composedRoles;
+
+  bool get canRewriteChart => chartShift != null && composedRoles.isNotEmpty;
 
   double get secondsPerBeat => 60 / bpm;
   double seconds(double beat) => beat * 60 / bpm;
@@ -81,5 +94,7 @@ class SpartaBase {
     beatsPerBar: beatsPerBar,
     barRoots: barRoots,
     notes: notes,
+    chartShift: chartShift,
+    composedRoles: composedRoles,
   );
 }

@@ -15,6 +15,7 @@ import '../state/project_controller.dart';
 import '../state/render_queue.dart';
 import '../state/settings_controller.dart';
 import '../state/sparta_controller.dart';
+import 'file_dialogs.dart';
 import 'widgets/common.dart';
 
 /// User-level commands shared by buttons, menus and keyboard shortcuts.
@@ -25,7 +26,8 @@ class StudioActions {
   T _read<T>() => context.read<T>();
 
   Future<void> importFiles() async {
-    final files = await FilePicker.pickFiles(
+    final files = await pickFilesSafely(
+      context,
       dialogTitle: 'Add videos',
       type: FileType.custom,
       allowedExtensions: videoExtensions.toList(),

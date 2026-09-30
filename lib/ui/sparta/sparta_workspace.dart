@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,6 +13,7 @@ import '../actions.dart';
 import '../platform_actions.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'sparta_sections.dart';
 import 'sparta_setup.dart';
 import 'sparta_style.dart';
 
@@ -331,24 +333,17 @@ class _PreviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _Timeline(base: base, mix: mix, position: pos, onSeek: play.available ? play.seek : null),
+          _Timeline(
+            base: base,
+            mix: mix,
+            position: pos,
+            onSeek: play.available ? play.seek : null,
+            onMoveBoundary: c.busy ? null : c.moveSectionBoundary,
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final s in base.sections)
-                      _SectionChip(
-                        section: s,
-                        base: base,
-                        reroll: c.baseMode == BaseMode.builtIn ? () => c.rerollSection(s.kind) : null,
-                      ),
-                  ],
-                ),
-              ),
+              Expanded(child: SectionChips(base: base)),
               const SizedBox(width: 10),
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: AppColors.sparta, foregroundColor: Colors.white),
@@ -392,65 +387,98 @@ class _PlayButton extends StatelessWidget {
   }
 }
 
-class _SectionChip extends StatelessWidget {
-  const _SectionChip({required this.section, required this.base, this.reroll});
-  final Section section;
-  final SpartaBase base;
-  final VoidCallback? reroll;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = sectionColor(section.kind);
-    final bars = (section.lengthBeats / base.beatsPerBar).round();
-    return Container(
-      padding: EdgeInsets.fromLTRB(8, 3, reroll == null ? 8 : 2, 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('${section.title} · $bars bars', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-          if (reroll != null)
-            InkWell(
-              onTap: reroll,
-              customBorder: const CircleBorder(),
-              child: Tooltip(
-                message: 'Re-roll this section',
-                child: Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: Icon(Icons.casino_outlined, size: 14, color: color),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.base, required this.mix, required this.position, this.onSeek});
+/// Lanes of the mix over the base's sections. Click or drag to seek; drag a
+/// section boundary (in the top strip) to move it, snapping to bars.
+class _Timeline extends StatefulWidget {
+  const _Timeline({required this.base, required this.mix, required this.position, this.onSeek, this.onMoveBoundary});
   final SpartaBase base;
   final RemixMix mix;
   final double position;
   final ValueChanged<double>? onSeek;
+  final void Function(int boundary, double beat)? onMoveBoundary;
+
+  @override
+  State<_Timeline> createState() => _TimelineState();
+}
+
+class _TimelineState extends State<_Timeline> {
+  static const _strip = 22.0, _grab = 6.0;
+  int? _dragging;
+  double? _dragBeat;
+  bool _hoverBoundary = false;
+
+  double _beatAt(double x, double width) => (x / width).clamp(0.0, 1.0) * widget.mix.duration * widget.base.bpm / 60;
+
+  /// The boundary (index of the section it ends) under [o], if any.
+  int? _boundaryAt(Offset o, double width) {
+    if (widget.onMoveBoundary == null || o.dy > _strip) return null;
+    final dur = widget.mix.duration;
+    if (dur <= 0) return null;
+    final s = widget.base.sections;
+    for (var i = 0; i + 1 < s.length; i++) {
+      final x = widget.base.seconds(s[i].endBeat) / dur * width;
+      if ((o.dx - x).abs() <= _grab) return i;
+    }
+    return null;
+  }
+
+  double _snap(double beat) {
+    final bpb = widget.base.beatsPerBar;
+    return (beat / bpb).round() * bpb.toDouble();
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        void seek(Offset o) => onSeek?.call((o.dx / box.maxWidth).clamp(0.0, 1.0) * mix.duration);
+        final w = box.maxWidth;
+        void seek(Offset o) => widget.onSeek?.call((o.dx / w).clamp(0.0, 1.0) * widget.mix.duration);
+        final cursor = _dragging != null || _hoverBoundary
+            ? SystemMouseCursors.resizeColumn
+            : (widget.onSeek == null ? MouseCursor.defer : SystemMouseCursors.click);
         return MouseRegion(
-          cursor: onSeek == null ? MouseCursor.defer : SystemMouseCursors.click,
+          cursor: cursor,
+          onHover: (e) {
+            final over = _boundaryAt(e.localPosition, w) != null;
+            if (over != _hoverBoundary) setState(() => _hoverBoundary = over);
+          },
+          onExit: (_) => _hoverBoundary ? setState(() => _hoverBoundary = false) : null,
           child: GestureDetector(
+            // Grab where the pointer went down, not where the drag was
+            // recognised (a few pixels later), so boundaries are easy to catch.
+            dragStartBehavior: DragStartBehavior.down,
             onTapDown: (d) => seek(d.localPosition),
-            onHorizontalDragUpdate: (d) => seek(d.localPosition),
+            onHorizontalDragStart: (d) {
+              final b = _boundaryAt(d.localPosition, w);
+              if (b != null) {
+                setState(() {
+                  _dragging = b;
+                  _dragBeat = _snap(_beatAt(d.localPosition.dx, w));
+                });
+              } else {
+                seek(d.localPosition);
+              }
+            },
+            onHorizontalDragUpdate: (d) {
+              if (_dragging == null) return seek(d.localPosition);
+              setState(() => _dragBeat = _snap(_beatAt(d.localPosition.dx, w)));
+            },
+            onHorizontalDragEnd: (_) {
+              final b = _dragging, beat = _dragBeat;
+              setState(() {
+                _dragging = null;
+                _dragBeat = null;
+              });
+              if (b != null && beat != null) widget.onMoveBoundary?.call(b, beat);
+            },
             child: CustomPaint(
-              size: Size(box.maxWidth, 24 + SampleRole.values.length * 13 + 4),
-              painter: _TimelinePainter(base: base, mix: mix, position: position),
+              size: Size(w, 24 + SampleRole.values.length * 13 + 4),
+              painter: _TimelinePainter(
+                base: widget.base,
+                mix: widget.mix,
+                position: widget.position,
+                dragBeat: _dragBeat,
+              ),
             ),
           ),
         );
@@ -460,10 +488,13 @@ class _Timeline extends StatelessWidget {
 }
 
 class _TimelinePainter extends CustomPainter {
-  _TimelinePainter({required this.base, required this.mix, required this.position});
+  _TimelinePainter({required this.base, required this.mix, required this.position, this.dragBeat});
   final SpartaBase base;
   final RemixMix mix;
   final double position;
+
+  /// Where a dragged section boundary would land.
+  final double? dragBeat;
 
   static const _lanes = [
     SampleRole.quote,
@@ -516,13 +547,21 @@ class _TimelinePainter extends CustomPainter {
       }
     }
 
+    // Boundary being dragged.
+    final drag = dragBeat;
+    if (drag != null) {
+      final dx = x(base.seconds(drag));
+      canvas.drawRect(Rect.fromLTWH(dx - 1.5, 0, 3, size.height), Paint()..color = AppColors.sparta);
+    }
+
     // Playhead.
     final px = x(position.clamp(0, dur).toDouble());
     canvas.drawRect(Rect.fromLTWH(px - 1, 0, 2, size.height), Paint()..color = Colors.white);
   }
 
   @override
-  bool shouldRepaint(_TimelinePainter old) => old.position != position || old.mix != mix || old.base != base;
+  bool shouldRepaint(_TimelinePainter old) =>
+      old.position != position || old.mix != mix || old.base != base || old.dragBeat != dragBeat;
 }
 
 // -----------------------------------------------------------------------------

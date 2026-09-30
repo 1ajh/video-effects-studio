@@ -9,6 +9,7 @@ import '../../core/sparta/sample_processing.dart';
 import '../../core/sparta/visual_renderer.dart';
 import '../../state/project_controller.dart';
 import '../../state/sparta_controller.dart';
+import '../file_dialogs.dart';
 import '../inspector/output_section.dart';
 import '../platform_actions.dart';
 import '../theme.dart';
@@ -48,7 +49,8 @@ class _SourcesCard extends StatelessWidget {
   const _SourcesCard();
 
   Future<void> _add(BuildContext context) async {
-    final files = await FilePicker.pickFiles(
+    final files = await pickFilesSafely(
+      context,
       dialogTitle: 'Add sources (videos or audio)',
       type: FileType.custom,
       allowedExtensions: videoExtensions.toList(),
@@ -319,7 +321,8 @@ class _ProjectBase extends StatelessWidget {
   const _ProjectBase();
 
   Future<void> _pickProject(BuildContext context) async {
-    final files = await FilePicker.pickFiles(
+    final files = await pickFilesSafely(
+      context,
       dialogTitle: 'Open a base project',
       type: FileType.custom,
       allowedExtensions: projectFileExtensions.toList(),
@@ -329,7 +332,8 @@ class _ProjectBase extends StatelessWidget {
   }
 
   Future<void> _pickAudio(BuildContext context) async {
-    final files = await FilePicker.pickFiles(
+    final files = await pickFilesSafely(
+      context,
       dialogTitle: "The base's rendered audio",
       type: FileType.custom,
       allowedExtensions: const ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'opus'],
@@ -465,7 +469,8 @@ class _AudioBase extends StatelessWidget {
   const _AudioBase();
 
   Future<void> _pick(BuildContext context) async {
-    final files = await FilePicker.pickFiles(
+    final files = await pickFilesSafely(
+      context,
       dialogTitle: 'Choose a base (audio)',
       type: FileType.custom,
       allowedExtensions: const ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'mp4', 'webm', 'mkv'],
@@ -486,37 +491,20 @@ class _AudioBase extends StatelessWidget {
           label: c.audioBasePath == null ? 'Choose a base audio file' : shortPath(c.audioBasePath!),
           onTap: () => _pick(context),
         ),
+        const SizedBox(height: 10),
+        const _TempoRow(),
         if (a != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              Pill('${a.bpm.toStringAsFixed(a.bpm % 1 == 0 ? 0 : 1)} BPM', icon: Icons.speed, color: AppColors.success),
-              Pill('${a.bars} bars', icon: Icons.view_week_outlined),
+              Pill('Bar 1 at ${a.firstDownbeat.toStringAsFixed(2)} s', icon: Icons.flag_outlined),
               Pill('Key ${_noteName(a.tonicPc)}', icon: Icons.piano_outlined),
-              Pill('Bar 1 at ${a.firstDownbeat.toStringAsFixed(2)}s', icon: Icons.flag_outlined),
+              Pill('${a.bars} bars', icon: Icons.view_week_outlined),
             ],
           ),
         ],
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            const Expanded(
-              child: Text('Tempo hint', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-            ),
-            SizedBox(
-              width: 110,
-              child: TextFormField(
-                initialValue: c.bpmHint?.toStringAsFixed(0) ?? '',
-                decoration: const InputDecoration(hintText: 'auto', suffixText: 'BPM'),
-                style: const TextStyle(fontSize: 12.5),
-                keyboardType: TextInputType.number,
-                onFieldSubmitted: (v) => c.setBpmHint(double.tryParse(v)),
-              ),
-            ),
-          ],
-        ),
         const SizedBox(height: 8),
         _TransposeRow(value: c.transpose, onChanged: c.setTranspose),
       ],
@@ -524,6 +512,80 @@ class _AudioBase extends StatelessWidget {
   }
 
   static String _noteName(int pc) => const ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'][pc % 12];
+}
+
+/// Detected (or set) tempo of an audio base, with half/double-time fixes
+/// and an exact BPM.
+class _TempoRow extends StatelessWidget {
+  const _TempoRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<SpartaController>();
+    final bpm = c.audioBpm;
+    final set = c.bpmOverride != null;
+    String fmt(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
+    return Row(
+      children: [
+        Expanded(
+          child: bpm == null
+              ? const Text('Tempo', style: TextStyle(fontSize: 12, color: AppColors.muted))
+              : Align(
+                  alignment: Alignment.centerLeft,
+                  child: Pill(
+                    '${fmt(bpm)} BPM',
+                    icon: set ? Icons.edit_outlined : Icons.check,
+                    color: set ? AppColors.sparta : AppColors.success,
+                    tooltip: set ? 'Tempo set by you' : 'Detected tempo',
+                  ),
+                ),
+        ),
+        _TempoButton(label: '½×', tooltip: 'Half time', onPressed: bpm == null || c.busy ? null : c.halveTempo),
+        const SizedBox(width: 4),
+        _TempoButton(label: '2×', tooltip: 'Double time', onPressed: bpm == null || c.busy ? null : c.doubleTempo),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 86,
+          child: TextFormField(
+            // Rebuilt when the tempo is changed elsewhere (½×, 2×, auto).
+            key: ValueKey(c.bpmOverride),
+            initialValue: c.bpmOverride == null ? '' : fmt(c.bpmOverride!),
+            decoration: const InputDecoration(hintText: 'auto', suffixText: 'BPM', isDense: true),
+            style: const TextStyle(fontSize: 12.5),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onFieldSubmitted: (v) => c.setBpm(double.tryParse(v.trim())),
+          ),
+        ),
+        if (set)
+          ToolButton(icon: Icons.restart_alt, tooltip: 'Back to the detected tempo', onPressed: () => c.setBpm(null))
+        else
+          const SizedBox(width: 34),
+      ],
+    );
+  }
+}
+
+class _TempoButton extends StatelessWidget {
+  const _TempoButton({required this.label, required this.tooltip, this.onPressed});
+  final String label;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(38, 30),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+        ),
+        child: Text(label),
+      ),
+    );
+  }
 }
 
 class _TransposeRow extends StatelessWidget {

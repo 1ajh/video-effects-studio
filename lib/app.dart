@@ -63,7 +63,7 @@ class _StudioAppState extends State<StudioApp> {
     settings: settings,
   );
   late final playback = PlaybackController(available: widget.playerAvailable, project: project, preview: preview);
-  late final sparta = SpartaController(engine);
+  late final sparta = SpartaController(engine, store: widget.store);
   late final spartaPlayback = SpartaPlayback(available: widget.playerAvailable);
 
   @override

@@ -1,9 +1,9 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/output_settings.dart';
 import '../../state/settings_controller.dart';
+import '../file_dialogs.dart';
 import '../platform_actions.dart';
 import '../theme.dart';
 
@@ -106,7 +106,8 @@ class _OutputSectionState extends State<OutputSection> {
                       InkWell(
                         borderRadius: BorderRadius.circular(8),
                         onTap: () async {
-                          final dir = await FilePicker.getDirectoryPath(
+                          final dir = await pickDirectorySafely(
+                            context,
                             dialogTitle: 'Choose output folder',
                             initialDirectory: settings.outputDir,
                           );

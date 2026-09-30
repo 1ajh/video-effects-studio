@@ -138,14 +138,20 @@ class ChartSource {
       audioOffset: audioOffset,
       barRoots: base.barRoots,
       notes: [...warnings, if (base.autoCharted) 'Sample chart composed automatically over this base.'].join('\n'),
+      chartShift: base.shift,
+      composedRoles: base.roles,
     );
   }
 
-  ({List<ChartNote> chart, List<Section> sections, List<int> barRoots, bool autoCharted}) _fromLanes(
-    Map<SampleRole, List<RawNote>> byRole,
-    double length,
-    int transpose,
-  ) {
+  ({
+    List<ChartNote> chart,
+    List<Section> sections,
+    List<int> barRoots,
+    bool autoCharted,
+    int? shift,
+    Set<SampleRole> roles,
+  })
+  _fromLanes(Map<SampleRole, List<RawNote>> byRole, double length, int transpose) {
     final chart = <ChartNote>[];
     // Tonal lanes share one root so harmony between them is preserved.
     final tonal = [...?byRole[SampleRole.pitch], ...?byRole[SampleRole.chop]];
@@ -172,16 +178,25 @@ class ChartSource {
       chart.addAll(_drumLane(role, const {}));
     }
     chart.sort((a, b) => a.beat.compareTo(b.beat));
-    return (chart: chart, sections: inferSections(chart, length), barRoots: const <int>[], autoCharted: false);
+    return (
+      chart: chart,
+      sections: inferSections(chart, length),
+      barRoots: const <int>[],
+      autoCharted: false,
+      shift: null,
+      roles: const <SampleRole>{},
+    );
   }
 
-  ({List<ChartNote> chart, List<Section> sections, List<int> barRoots, bool autoCharted}) _autoChart(
-    Map<String, SampleRole?> mapping,
-    double length,
-    int transpose,
-    int seed,
-    BaseStyle style,
-  ) {
+  ({
+    List<ChartNote> chart,
+    List<Section> sections,
+    List<int> barRoots,
+    bool autoCharted,
+    int? shift,
+    Set<SampleRole> roles,
+  })
+  _autoChart(Map<String, SampleRole?> mapping, double length, int transpose, int seed, BaseStyle style) {
     final parts = tracks.where((t) => mapping[t.id] == null).toList();
     final tonalNotes = [
       for (final t in parts)
@@ -206,13 +221,15 @@ class ChartSource {
     ];
     // Where the base has its own kick/snare, lock the sample drums to them.
     final drums = _drumOnsets(parts);
+    final roles = {SampleRole.pitch, SampleRole.chop, SampleRole.kick, SampleRole.snare, SampleRole.hat};
     for (final role in const [SampleRole.kick, SampleRole.snare]) {
       if (drums[role]!.length < bars) continue;
       chart.removeWhere((n) => n.role == role);
       chart.addAll(_drumLane(role, mapping));
+      roles.remove(role);
     }
     chart.sort((a, b) => a.beat.compareTo(b.beat));
-    return (chart: chart, sections: sections, barRoots: roots, autoCharted: true);
+    return (chart: chart, sections: sections, barRoots: roots, autoCharted: true, shift: shift, roles: roles);
   }
 
   Map<SampleRole, List<RawNote>> _drumOnsets(List<ChartTrack> parts) {

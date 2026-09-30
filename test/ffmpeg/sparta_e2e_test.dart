@@ -146,5 +146,5 @@ void main() {
 
 extension on AudioBaseSource {
   AudioBaseSource copyWithPath(String path) =>
-      AudioBaseSource(audioPath: path, bpmHint: bpmHint, transpose: transpose, style: style, seed: seed);
+      AudioBaseSource(audioPath: path, bpm: bpm, transpose: transpose, style: style, seed: seed);
 }

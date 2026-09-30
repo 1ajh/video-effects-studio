@@ -77,13 +77,15 @@ class ProjectBaseSource extends BaseSource {
 class AudioBaseSource extends BaseSource {
   const AudioBaseSource({
     required this.audioPath,
-    this.bpmHint,
+    this.bpm,
     this.transpose = 0,
     this.style = BaseStyle.classic,
     this.seed = 1,
   });
   final String audioPath;
-  final double? bpmHint;
+
+  /// Tempo to use instead of detecting it.
+  final double? bpm;
   final int transpose;
   final BaseStyle style;
   final int seed;
@@ -224,7 +226,7 @@ class SpartaEngine {
           s.audioPath,
           sampleRate: AudioBaseAnalyzer.sampleRate,
         );
-        final analysis = await Isolate.run(() => AudioBaseAnalyzer().analyze(analysisAudio, bpmHint: s.bpmHint));
+        final analysis = await Isolate.run(() => AudioBaseAnalyzer().analyze(analysisAudio, tempo: s.bpm));
         final base = AudioBaseAnalyzer().toBase(
           analysis,
           name: p.basenameWithoutExtension(s.audioPath),

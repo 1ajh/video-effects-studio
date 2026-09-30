@@ -66,7 +66,9 @@ class AudioBaseAnalyzer {
   /// many seconds (window build-up), compensated below.
   static const onsetLatency = -0.004;
 
-  AudioBaseAnalysis analyze(AudioBuffer audio, {double? bpmHint}) {
+  /// Analyses [audio]; a [tempo] (BPM) is used as given instead of detected,
+  /// e.g. to fix a half- or double-time reading.
+  AudioBaseAnalysis analyze(AudioBuffer audio, {double? tempo}) {
     final mono = audio.mono();
     final x = mono.sampleRate == sampleRate
         ? mono.data
@@ -127,28 +129,31 @@ class AudioBaseAnalyzer {
     }
     double chromaTime(int fr) => (fr * chromaHop + chromaWindow / 2) / sampleRate;
 
-    // Tempo: autocorrelation with a prior near 140, then refined by how well
-    // a long beat comb stays in phase with the onsets.
-    final (coarse, confidence) = _tempo(onset, fps, bpmHint);
-    var bpm = coarse;
-    var bestPhase = 0.0;
-    var bestScore = -1.0;
-    for (var cand = coarse - 1.6; cand <= coarse + 1.6; cand += 0.02) {
-      final (ph, s) = _bestPhase(onset, fps * 60 / cand, frames);
-      if (s > bestScore) {
-        bestScore = s;
-        bestPhase = ph;
-        bpm = cand;
+    // Tempo: the user's, or autocorrelation with a prior near 140, refined by
+    // how well a long beat comb stays in phase with the onsets.
+    var bpm = tempo ?? 0;
+    var confidence = 1.0;
+    if (tempo == null) {
+      final (coarse, conf) = _tempo(onset, fps);
+      confidence = conf;
+      bpm = coarse;
+      var bestScore = -1.0;
+      for (var cand = coarse - 1.6; cand <= coarse + 1.6; cand += 0.02) {
+        final s = _bestPhase(onset, fps * 60 / cand, frames).$2;
+        if (s > bestScore) {
+          bestScore = s;
+          bpm = cand;
+        }
+      }
+      final whole = bpm.roundToDouble();
+      if ((bpm - whole).abs() < 0.3) {
+        bpm = whole;
+      } else if ((bpm * 2 - (bpm * 2).round()).abs() < 0.2) {
+        bpm = (bpm * 2).round() / 2;
       }
     }
-    final whole = bpm.roundToDouble();
-    if ((bpm - whole).abs() < 0.3) {
-      bpm = whole;
-    } else if ((bpm * 2 - (bpm * 2).round()).abs() < 0.2) {
-      bpm = (bpm * 2).round() / 2;
-    }
     final period = fps * 60 / bpm;
-    bestPhase = _bestPhase(onBeat, period, frames).$1;
+    final bestPhase = _bestPhase(onBeat, period, frames).$1;
 
     // Downbeat. In real Sparta bases the kick hits every beat but most on
     // beat 1, the snare 2 and 4, and the bass/chords change on the bar
@@ -430,13 +435,15 @@ class AudioBaseAnalyzer {
       audioPath: audioPath,
       audioOffset: a.firstDownbeat,
       barRoots: a.barRoots,
+      chartShift: shift,
+      composedRoles: const {SampleRole.pitch, SampleRole.chop, SampleRole.kick, SampleRole.snare, SampleRole.hat},
       notes:
           'Tempo ${a.bpm.toStringAsFixed(1)} BPM (confidence ${(a.tempoConfidence * 100).round()}%), '
           'first bar at ${a.firstDownbeat.toStringAsFixed(2)} s. Sample chart composed automatically.',
     );
   }
 
-  static (double, double) _tempo(Float64List onset, double fps, double? hint) {
+  static (double, double) _tempo(Float64List onset, double fps) {
     final minLag = (fps * 60 / 200).floor(), maxLag = (fps * 60 / 70).ceil();
     final n = onset.length;
     final ac = Float64List(maxLag * 2 + 2);
@@ -453,7 +460,7 @@ class AudioBaseAnalyzer {
       return ac[i] + (ac[i + 1] - ac[i]) * (l - i);
     }
 
-    final center = hint ?? 140;
+    const center = 140.0;
     var best = center, bestScore = -1.0;
     final scores = <double>[];
     for (var bpm = 70.0; bpm <= 200; bpm += 0.05) {

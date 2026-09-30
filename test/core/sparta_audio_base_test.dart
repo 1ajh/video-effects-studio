@@ -113,4 +113,22 @@ void main() {
     expect(err.abs(), lessThan(0.03), reason: 'bar 1 at ${a.firstDownbeat}');
     expect(a.tonicPc, 2, reason: 'G minor shares D Phrygian\'s notes');
   });
+
+  test('an exact tempo is used as given, and bar 1 stays on the real bar grid at half or double time', () {
+    final comp = Composer(
+      style: BaseStyle.venom,
+      seed: 2,
+    ).compose(defaultPlan(enabled: {SectionKind.chorus, SectionKind.epicness, SectionKind.madness}));
+    final audio = BaseRenderer().render(comp);
+    final bar = 240 / BaseStyle.venom.bpm;
+    for (final tempo in [BaseStyle.venom.bpm / 2, BaseStyle.venom.bpm * 2]) {
+      final a = AudioBaseAnalyzer().analyze(audio, tempo: tempo);
+      expect(a.bpm, tempo);
+      expect(a.tempoConfidence, 1);
+      // Wherever bar 1 lands, it is on a bar line of the music.
+      final err = (a.firstDownbeat / bar - (a.firstDownbeat / bar).round()) * bar;
+      expect(err.abs(), lessThan(0.03), reason: 'at $tempo BPM, bar 1 at ${a.firstDownbeat}');
+      expect(a.barSeconds, closeTo(240 / tempo, 1e-9));
+    }
+  });
 }

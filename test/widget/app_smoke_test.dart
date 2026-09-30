@@ -98,7 +98,9 @@ void main() {
     await tester.tap(find.text('Audio'));
     await tester.pumpAndSettle();
     expect(find.text('Choose a base audio file'), findsOneWidget);
-    expect(find.text('Tempo hint'), findsOneWidget);
+    expect(find.text('Tempo'), findsOneWidget);
+    expect(find.text('½×'), findsOneWidget);
+    expect(find.text('2×'), findsOneWidget);
   });
 
   for (final width in [1100.0, 1280.0, 1600.0]) {
@@ -111,6 +113,12 @@ void main() {
       await tester.tap(find.byTooltip('Sparta Remix generator (Ctrl+3)'));
       await tester.pumpAndSettle();
       expect(find.text('Sparta Remix Generator'), findsOneWidget);
+      for (final mode in ['Project', 'Audio']) {
+        await tester.ensureVisible(find.text(mode));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(mode));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.byTooltip('Single effect (Ctrl+1)'));
       await tester.pumpAndSettle();
       // Layout overflows fail the test on their own.

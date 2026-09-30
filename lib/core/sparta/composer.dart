@@ -75,6 +75,35 @@ List<SectionPlan> defaultPlan({RemixLength length = RemixLength.standard, Set<Se
 /// D Phrygian (== G natural minor) in semitones above D.
 const phrygian = [0, 1, 3, 5, 7, 8, 10];
 
+/// The sample chart of one section, written as [kind] over bars
+/// [bar0, bar0 + bars) of [base]: over the base's own chords and in its key,
+/// on the lanes the composer owns (never the quote). [variant] gives
+/// another take.
+List<ChartNote> composeSectionChart(
+  SpartaBase base, {
+  required SectionKind kind,
+  required int bar0,
+  required int bars,
+  required BaseStyle style,
+  required int seed,
+  int variant = 0,
+}) {
+  if (bars <= 0) return const [];
+  final roots = base.barRoots.isEmpty ? null : [for (var b = 0; b < bars; b++) base.rootAtBar(bar0 + b)];
+  final comp = Composer(
+    style: style,
+    seed: seed * 7919 + variant * 104729 + bar0 * 31 + kind.index,
+  ).compose([SectionPlan(kind, bars)], barRoots: roots);
+  final shift = base.chartShift ?? 0;
+  final offset = bar0 * base.beatsPerBar.toDouble();
+  final end = bars * base.beatsPerBar.toDouble();
+  return [
+    for (final n in comp.base.chart)
+      if (n.role != SampleRole.quote && base.composedRoles.contains(n.role) && n.beat < end)
+        n.copyWith(beat: n.beat + offset, semitone: n.role.isTonal ? n.semitone + shift : n.semitone),
+  ];
+}
+
 /// Result of composing a built-in base.
 class Composition {
   Composition(this.base, this.score, {required this.style, required this.seed});
@@ -132,6 +161,8 @@ class Composer {
       chart: _dedupe(chart),
       lengthBeats: bar * 4.0 + 4, // one bar of tail
       barRoots: roots,
+      chartShift: 0,
+      composedRoles: const {SampleRole.pitch, SampleRole.chop, SampleRole.kick, SampleRole.snare, SampleRole.hat},
     );
     return Composition(base, score, style: style, seed: seed);
   }
