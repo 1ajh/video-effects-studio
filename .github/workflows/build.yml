@@ -132,3 +132,6 @@ jobs:
             artifacts/macos/VideoEffectsStudio-macos.dmg
           fail_on_unmatched_files: false
           generate_release_notes: true
+          # Tags like v2.0.0-dev.1 are test builds: published as pre-releases,
+          # which the in-app update check (releases/latest) never offers.
+          prerelease: ${{ contains(github.ref_name, '-') }}
