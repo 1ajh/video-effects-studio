@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Also publish a release with this new tag (e.g. v2.0.0-dev.2); empty = build only'
+        description: "Release tag to publish: 'auto' = v + the app version in pubspec.yaml (e.g. v2.0.0-dev.1), or type one; empty = build only"
         required: false
-        default: ''
+        default: 'auto'
 
 permissions:
   contents: write
@@ -126,13 +126,30 @@ jobs:
     if: always() && (startsWith(github.ref, 'refs/tags/') || inputs.tag != '')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: pubspec.yaml
+      - name: Pick the tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          elif [[ "$INPUT_TAG" == "auto" ]]; then
+            tag="v$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' pubspec.yaml)"
+          else
+            tag="$INPUT_TAG"
+          fi
+          echo "Publishing $tag"
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
           # A manual run creates the tag on the commit it built.
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.name }}
           target_commitish: ${{ github.sha }}
           files: |
             artifacts/windows/VideoEffectsStudio-windows.zip
@@ -142,4 +159,4 @@ jobs:
           generate_release_notes: true
           # Tags like v2.0.0-dev.1 are test builds: published as pre-releases,
           # which the in-app update check (releases/latest) never offers.
-          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
+          prerelease: ${{ contains(steps.tag.outputs.name, '-') }}
