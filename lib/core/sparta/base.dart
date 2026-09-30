@@ -80,6 +80,7 @@ class SpartaBase {
     String? audioPath,
     double? audioOffset,
     String? name,
+    List<int>? barRoots,
   }) => SpartaBase(
     id: id,
     name: name ?? this.name,
@@ -92,7 +93,7 @@ class SpartaBase {
     audioPath: audioPath ?? this.audioPath,
     audioOffset: audioOffset ?? this.audioOffset,
     beatsPerBar: beatsPerBar,
-    barRoots: barRoots,
+    barRoots: barRoots ?? this.barRoots,
     notes: notes,
     chartShift: chartShift,
     composedRoles: composedRoles,

@@ -103,7 +103,6 @@ class SpartaController extends ChangeNotifier {
     SectionKind.outro,
   };
   int seed = 1;
-  final Map<SectionKind, int> sectionSeeds = {};
 
   String? projectPath;
   String? projectAudioPath;
@@ -295,14 +294,8 @@ class SpartaController extends ChangeNotifier {
     _baseChanged();
   }
 
-  void rerollSection(SectionKind k) {
-    sectionSeeds[k] = (sectionSeeds[k] ?? 0) + 1;
-    _baseChanged();
-  }
-
   void newVariation() {
     seed++;
-    sectionSeeds.clear();
     _clearBuiltInEdits();
     _baseChanged();
   }
@@ -404,8 +397,15 @@ class SpartaController extends ChangeNotifier {
 
   void _edit(SectionEdits e) {
     if (identical(e, edits) || prepared == null) return;
+    final rewritesChanged = !identical(e.rewrites, edits.rewrites);
     edits = e;
     _save();
+    // Built-in bases rewrite their music too, which needs a new render.
+    if (baseMode == BaseMode.builtIn && rewritesChanged) {
+      notifyListeners();
+      _schedule(_rebuildBase);
+      return;
+    }
     final auto = _auto;
     if (auto != null) prepared = _withEdits(auto);
     notifyListeners();
@@ -422,12 +422,59 @@ class SpartaController extends ChangeNotifier {
 
   PreparedBase _withEdits(PreparedBase auto) {
     if (edits.isEmpty) return auto;
+    // The engine already applied a built-in base's rewrites (music and all).
+    final e = baseMode == BaseMode.builtIn ? SectionEdits(layout: edits.layout) : edits;
     return PreparedBase(
-      base: edits.apply(auto.base, style: style, seed: seed),
+      base: e.apply(auto.base, style: style, seed: seed),
       audio: auto.audio,
       score: auto.score,
       chart: auto.chart,
       analysis: auto.analysis,
+    );
+  }
+
+  /// Other base files whose sections were edited, to copy their layout.
+  List<({String path, List<Section> layout})> get savedLayouts {
+    final store = _store;
+    if (store == null) return const [];
+    const prefix = 'sparta.base.';
+    final current = _savedKey;
+    final out = <({String path, List<Section> layout})>[];
+    for (final key in store.keysStartingWith(prefix)) {
+      if (key == current) continue;
+      final layout = SectionEdits.fromJson(store.readJson<Map<String, dynamic>>(key)?['edits']).layout;
+      if (layout != null && layout.isNotEmpty) out.add((path: key.substring(prefix.length), layout: layout));
+    }
+    out.sort((a, b) => p.basename(a.path).toLowerCase().compareTo(p.basename(b.path).toLowerCase()));
+    return out;
+  }
+
+  /// Uses another base's section layout here, bar for bar (cut or stretched
+  /// at the end to fit); with [rewrite], each section's notes (and a
+  /// built-in base's music) are recomposed to match its kind.
+  void copySections(List<Section> layout, {bool rewrite = false}) {
+    final base = prepared?.base;
+    if (base == null || base.sections.isEmpty) return;
+    final end = (_auto?.base ?? base).sections.last.endBeat;
+    final bpb = base.beatsPerBar.toDouble();
+    final fitted = <Section>[];
+    for (final s in layout) {
+      final start = fitted.isEmpty ? 0.0 : fitted.last.endBeat;
+      if (start >= end - 1e-9) break;
+      final stop = math.min(end, (s.endBeat / bpb).round() * bpb);
+      if (stop <= start + 1e-9) continue;
+      fitted.add(Section(s.kind, start, stop, name: s.name));
+    }
+    if (fitted.isEmpty) return;
+    final last = fitted.last;
+    if (last.endBeat < end) fitted[fitted.length - 1] = Section(last.kind, last.startBeat, end, name: last.name);
+    _edit(
+      SectionEdits(
+        layout: List.unmodifiable(fitted),
+        rewrites: rewrite && canRewriteSections
+            ? [for (final s in fitted) ChartRewrite(s.startBeat, s.endBeat, s.kind)]
+            : const [],
+      ),
     );
   }
 
@@ -733,7 +780,7 @@ class SpartaController extends ChangeNotifier {
         length: length,
         sections: {...sections},
         seed: seed,
-        sectionSeeds: {...sectionSeeds},
+        rewrites: edits.rewrites,
       ),
       BaseMode.project => ProjectBaseSource(
         projectPath: projectPath!,

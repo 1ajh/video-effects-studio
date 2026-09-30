@@ -36,5 +36,7 @@ class Store {
 
   Future<void> remove(String key) => _prefs.remove(key);
 
+  Iterable<String> keysStartingWith(String prefix) => _prefs.getKeys().where((k) => k.startsWith(prefix));
+
   Future<void> clearAll() => _prefs.clear();
 }

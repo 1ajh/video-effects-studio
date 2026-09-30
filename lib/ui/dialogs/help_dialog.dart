@@ -62,8 +62,9 @@ Future<void> showHelpDialog(BuildContext context) => showDialog(
               'Hourglass effects (reverse etc.) hold the whole clip in memory; keep those clips short.',
               'Make your own effects with raw FFmpeg filters: the + button in the effect list.',
               'Sparta Remix: more sources give more variety. Drop an .flp, .flm or .mid on the window to use it as the base.',
-              'Sparta sections: click a section chip to relabel, rename, split, merge or re-roll it, and drag section '
-                  'edges on the timeline. Edits and tempo fixes are remembered for that base file.',
+              'Sparta sections: click a section chip to relabel, rename, split, merge or re-roll it, drag section '
+                  'edges on the timeline, or copy the sections of another base. Edits and tempo fixes are remembered '
+                  'for that base file.',
               'Audio base in double or half time? Use ½× / 2× next to its tempo, or type the exact BPM.',
             ])
               Padding(

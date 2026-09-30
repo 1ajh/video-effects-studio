@@ -19,6 +19,7 @@ import 'midi.dart';
 import 'model.dart';
 import 'sample_finder.dart';
 import 'sample_processing.dart';
+import 'section_edits.dart';
 import 'visual_renderer.dart';
 
 /// Where the base comes from.
@@ -34,6 +35,7 @@ class BuiltInBaseSource extends BaseSource {
     this.sections,
     this.seed = 1,
     this.sectionSeeds = const {},
+    this.rewrites = const [],
   });
 
   final BaseStyle style;
@@ -45,6 +47,9 @@ class BuiltInBaseSource extends BaseSource {
 
   /// Per-section re-roll counters.
   final Map<SectionKind, int> sectionSeeds;
+
+  /// Sections the user asked to have rewritten (music and sample notes).
+  final List<ChartRewrite> rewrites;
 }
 
 /// An FL Studio (.flp), FL Studio Mobile (.flm) or MIDI project, optionally
@@ -175,8 +180,12 @@ class SpartaEngine {
           s.style.name, s.length.name, s.seed, //
           plan.map((x) => '${x.kind.name}${x.bars}').join('-'),
           s.sectionSeeds.entries.map((e) => '${e.key.name}${e.value}').join('-'),
+          rewritesKey(s.rewrites),
         ].join('_');
-        final comp = Composer(style: s.style, seed: s.seed).compose(plan, sectionSeeds: s.sectionSeeds);
+        final comp = rewriteComposition(
+          Composer(style: s.style, seed: s.seed).compose(plan, sectionSeeds: s.sectionSeeds),
+          s.rewrites,
+        );
         final audio = await _cachedRender(key, comp);
         return PreparedBase(
           base: comp.base.copyWith(audioPath: _cachePath('base_$key.wav')),

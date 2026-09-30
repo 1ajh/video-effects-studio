@@ -198,3 +198,73 @@ class SectionEdits {
     );
   }
 }
+
+/// A built-in base with [rewrites] applied to its music as well as its
+/// sample chart: each range is composed afresh as its kind (its own chords
+/// and parts), so a section relabelled "madness" also sounds like one.
+Composition rewriteComposition(Composition comp, List<ChartRewrite> rewrites) {
+  final base = comp.base;
+  if (rewrites.isEmpty || base.sections.isEmpty) return comp;
+  final bpb = base.beatsPerBar.toDouble();
+  final limit = base.sections.last.endBeat;
+  var score = [...comp.score];
+  var chart = [...base.chart];
+  final roots = [...base.barRoots];
+  bool inRange(double beat, double a, double z) => beat >= a - 1e-9 && beat < z - 1e-9;
+  for (final r in rewrites) {
+    final bar0 = (r.startBeat / bpb).round();
+    final bar1 = math.min((r.endBeat / bpb).round(), (limit / bpb).round());
+    if (bar1 <= bar0) continue;
+    final a = bar0 * bpb, z = bar1 * bpb;
+    final sub = Composer(
+      style: comp.style,
+      seed: sectionSeed(comp.seed, r.kind, bar0, r.variant),
+    ).compose([SectionPlan(r.kind, bar1 - bar0)]);
+    // Splice the new events in where the old ones were: the renderer draws
+    // noise in score order, so everything before the section stays
+    // sample-identical.
+    final fresh = [
+      for (final e in sub.score)
+        if (e.beat < z - a - 1e-9) ScoreEvent(e.instrument, e.beat + a, e.length, midi: e.midi, velocity: e.velocity),
+    ];
+    final kept = <ScoreEvent>[];
+    var placed = false;
+    for (final e in score) {
+      if (inRange(e.beat, a, z)) {
+        if (!placed) kept.addAll(fresh);
+        placed = true;
+      } else {
+        kept.add(e);
+      }
+    }
+    if (!placed) kept.addAll(fresh);
+    score = kept;
+    chart = [
+      for (final n in chart)
+        if (!(base.composedRoles.contains(n.role) && inRange(n.beat, a, z))) n,
+      for (final n in sub.base.chart)
+        if (n.role != SampleRole.quote && base.composedRoles.contains(n.role) && n.beat < z - a - 1e-9)
+          n.copyWith(beat: n.beat + a),
+    ];
+    for (var b = bar0; b < bar1 && b < roots.length && b - bar0 < sub.base.barRoots.length; b++) {
+      roots[b] = sub.base.barRoots[b - bar0];
+    }
+  }
+  chart.sort((x, y) => x.beat != y.beat ? x.beat.compareTo(y.beat) : x.role.index.compareTo(y.role.index));
+  return Composition(
+    base.copyWith(chart: chart, barRoots: roots),
+    score,
+    style: comp.style,
+    seed: comp.seed,
+  );
+}
+
+/// A short stable signature of [rewrites] (for render caches).
+String rewritesKey(List<ChartRewrite> rewrites) {
+  if (rewrites.isEmpty) return '';
+  var h = 0x811c9dc5;
+  for (final c in rewrites.map((r) => '${r.kind.index}:${r.startBeat}:${r.endBeat}:${r.variant}').join(';').codeUnits) {
+    h = ((h ^ c) * 0x01000193) & 0xFFFFFFFF;
+  }
+  return 'rw${h.toRadixString(16)}';
+}

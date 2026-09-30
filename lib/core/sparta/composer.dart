@@ -75,6 +75,11 @@ List<SectionPlan> defaultPlan({RemixLength length = RemixLength.standard, Set<Se
 /// D Phrygian (== G natural minor) in semitones above D.
 const phrygian = [0, 1, 3, 5, 7, 8, 10];
 
+/// Seed for a section written on its own (a rewrite): stable for the same
+/// place, kind and take.
+int sectionSeed(int seed, SectionKind kind, int bar0, int variant) =>
+    seed * 7919 + variant * 104729 + bar0 * 31 + kind.index;
+
 /// The sample chart of one section, written as [kind] over bars
 /// [bar0, bar0 + bars) of [base]: over the base's own chords and in its key,
 /// on the lanes the composer owns (never the quote). [variant] gives
@@ -92,7 +97,7 @@ List<ChartNote> composeSectionChart(
   final roots = base.barRoots.isEmpty ? null : [for (var b = 0; b < bars; b++) base.rootAtBar(bar0 + b)];
   final comp = Composer(
     style: style,
-    seed: seed * 7919 + variant * 104729 + bar0 * 31 + kind.index,
+    seed: sectionSeed(seed, kind, bar0, variant),
   ).compose([SectionPlan(kind, bars)], barRoots: roots);
   final shift = base.chartShift ?? 0;
   final offset = bar0 * base.beatsPerBar.toDouble();

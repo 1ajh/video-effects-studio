@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_effects_studio/core/sparta/base.dart';
@@ -6,6 +7,7 @@ import 'package:video_effects_studio/core/sparta/chart_import.dart';
 import 'package:video_effects_studio/core/sparta/composer.dart';
 import 'package:video_effects_studio/core/sparta/model.dart';
 import 'package:video_effects_studio/core/sparta/section_edits.dart';
+import 'package:video_effects_studio/core/sparta/sparta_engine.dart';
 
 void main() {
   final base = Composer(seed: 4)
@@ -145,5 +147,72 @@ void main() {
     expect(sig(b.lane(SampleRole.kick)), sig(auto.lane(SampleRole.kick)));
     expect(sig(b.lane(SampleRole.snare)), sig(auto.lane(SampleRole.snare)));
     expect(sig(b.chart), isNot(sig(auto.chart)));
+  });
+
+  test('built-in rewrites recompose the music of that section too', () {
+    final comp = Composer(seed: 4).compose(
+      defaultPlan(length: RemixLength.short, enabled: {SectionKind.chorus, SectionKind.epicness, SectionKind.outro}),
+    );
+    final s = comp.base.sections[1];
+    final rw = [ChartRewrite(s.startBeat, s.endBeat, SectionKind.madness)];
+    final out = rewriteComposition(comp, rw);
+    String score(Iterable<ScoreEvent> e) =>
+        (e.map((x) => '${x.instrument.name}${x.beat}${x.midi}').toList()..sort()).join(' ');
+    bool inside(double beat) => s.contains(beat);
+    expect(score(out.score.where((e) => inside(e.beat))), isNot(score(comp.score.where((e) => inside(e.beat)))));
+    expect(score(out.score.where((e) => !inside(e.beat))), score(comp.score.where((e) => !inside(e.beat))));
+    expect(sig(out.base.chart.where((n) => !inside(n.beat))), sig(comp.base.chart.where((n) => !inside(n.beat))));
+    expect(out.base.lane(SampleRole.quote).length, comp.base.lane(SampleRole.quote).length);
+    // Same request, same music (so a render cache can be reused).
+    expect(score(rewriteComposition(comp, rw).score), score(out.score));
+    expect(rewritesKey(rw), rewritesKey([ChartRewrite(s.startBeat, s.endBeat, SectionKind.madness)]));
+    expect(
+      rewritesKey(rw),
+      isNot(rewritesKey([ChartRewrite(s.startBeat, s.endBeat, SectionKind.madness, variant: 1)])),
+    );
+    expect(rewritesKey(const []), '');
+  });
+
+  test('a built-in base renders its rewritten sections, and caches the render', () async {
+    final tmp = await Directory.systemTemp.createTemp('sparta_rw_');
+    addTearDown(() => tmp.delete(recursive: true));
+    final engine = SpartaEngine(ffmpegPath: 'ffmpeg', cacheDir: tmp.path);
+    const sections = {SectionKind.chorus, SectionKind.epicness, SectionKind.outro};
+    final plain = await engine.prepareBase(const BuiltInBaseSource(length: RemixLength.short, sections: sections));
+    final s = plain.base.sections[1];
+    final src = BuiltInBaseSource(
+      length: RemixLength.short,
+      sections: sections,
+      rewrites: [ChartRewrite(s.startBeat, s.endBeat, SectionKind.madness)],
+    );
+    final edited = await engine.prepareBase(src);
+    double rms(PreparedBase b, double from, double to) => b.audio.slice(b.base.seconds(from), b.base.seconds(to)).rms();
+    // Relative difference once the overall gain is matched (the renderer
+    // normalises the whole base's peak).
+    double diff(double from, double to) {
+      final a = plain.audio.slice(plain.base.seconds(from), plain.base.seconds(to)).mono().data;
+      final b = edited.audio.slice(edited.base.seconds(from), edited.base.seconds(to)).mono().data;
+      final n = a.length < b.length ? a.length : b.length;
+      var ab = 0.0, aa = 0.0;
+      for (var i = 0; i < n; i++) {
+        ab += a[i] * b[i];
+        aa += a[i] * a[i];
+      }
+      final k = aa > 0 ? ab / aa : 1.0;
+      var d = 0.0, e = 0.0;
+      for (var i = 0; i < n; i++) {
+        d += (b[i] - k * a[i]) * (b[i] - k * a[i]);
+        e += b[i] * b[i];
+      }
+      return e > 0 ? d / e : 0;
+    }
+
+    expect(rms(edited, s.startBeat, s.endBeat), greaterThan(0.01));
+    expect(diff(s.startBeat + 0.5, s.endBeat - 0.5), greaterThan(0.2));
+    // Before the section nothing changes.
+    expect(diff(0, s.startBeat - 0.5), lessThan(1e-6));
+    final files = Directory('${tmp.path}/sparta').listSync().whereType<File>().length;
+    await engine.prepareBase(src);
+    expect(Directory('${tmp.path}/sparta').listSync().whereType<File>().length, files);
   });
 }

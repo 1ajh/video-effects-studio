@@ -20,6 +20,7 @@ import 'package:video_effects_studio/ui/theme.dart';
 void main() {
   late Directory tmp;
   late String projectPath;
+  late String otherPath;
 
   setUpAll(() async {
     tmp = await Directory.systemTemp.createTemp('sparta_sections_');
@@ -28,6 +29,11 @@ void main() {
     );
     projectPath = p.join(tmp.path, 'base.mid');
     await File(projectPath).writeAsBytes(MidiFile.fromScore(comp).encode());
+    final longer = Composer(
+      seed: 5,
+    ).compose(defaultPlan(enabled: {SectionKind.intro, SectionKind.chorus, SectionKind.epicness, SectionKind.madness}));
+    otherPath = p.join(tmp.path, 'other base.mid');
+    await File(otherPath).writeAsBytes(MidiFile.fromScore(longer).encode());
   });
   tearDownAll(() => tmp.delete(recursive: true));
 
@@ -38,8 +44,8 @@ void main() {
   }
 
   /// Loads the project and prepares its base like the pipeline does.
-  Future<void> load(SpartaController c) async {
-    await c.setProject(projectPath);
+  Future<void> load(SpartaController c, [String? path]) async {
+    await c.setProject(path ?? projectPath);
     final chart = c.chart!;
     final base = chart.toBase(c.mapping, seed: c.seed, style: c.style);
     c.debugUseBase(PreparedBase(base: base, audio: AudioBuffer(Float32List(2), sampleRate: 48000), chart: chart));
@@ -71,6 +77,54 @@ void main() {
     expect(c2.prepared!.base.chart.length, isNot(0));
     expect(store.readJson<Map<String, dynamic>>('sparta.base.$projectPath'), isNull);
     expect(before, isPositive);
+  });
+
+  test('edited sections keep their notes when samples are re-picked', () async {
+    final (c, _) = await controller();
+    await load(c);
+    c.relabelSection(0, SectionKind.madness, rewrite: true);
+    c.splitSection(1, c.currentSections[1].startBeat + 4);
+    String sig() => c.prepared!.base.chart.map((n) => '${n.role.name}${n.beat}/${n.semitone}').join(' ');
+    final notes = sig(), kinds = c.currentSections.map((s) => s.kind).toList();
+    // Re-picking samples prepares the same automatic base again.
+    final chart = c.chart!;
+    c.debugUseBase(
+      PreparedBase(
+        base: chart.toBase(c.mapping, seed: c.seed, style: c.style),
+        audio: AudioBuffer(Float32List(2), sampleRate: 48000),
+        chart: chart,
+      ),
+    );
+    expect(sig(), notes);
+    expect(c.currentSections.map((s) => s.kind), kinds);
+  });
+
+  test("another base's sections can be copied bar for bar", () async {
+    final (c, store) = await controller();
+    await load(c, otherPath);
+    final other = c.currentSections;
+    // Edit the other base so it has a saved layout.
+    c.relabelSection(0, SectionKind.madness);
+    c.renameSection(1, 'Build');
+    final saved = c.currentSections;
+
+    final c2 = SpartaController(EngineController(), store: store);
+    await load(c2);
+    expect(c2.savedLayouts.map((l) => p.basename(l.path)), ['other base.mid']);
+    final end = c2.currentSections.last.endBeat;
+    c2.copySections(c2.savedLayouts.single.layout, rewrite: true);
+    final copied = c2.currentSections;
+    expect(copied.first.kind, SectionKind.madness);
+    expect(copied.first.endBeat, saved.first.endBeat.clamp(0, end));
+    if (copied.length > 1) expect(copied[1].title, 'Build');
+    expect(copied.last.endBeat, end);
+    for (var i = 1; i < copied.length; i++) {
+      expect(copied[i].startBeat, copied[i - 1].endBeat);
+    }
+    expect(c2.edits.rewrites, hasLength(copied.length));
+    // The base being edited never lists itself.
+    expect(c.savedLayouts.where((l) => l.path == otherPath), isEmpty);
+    expect(other, isNotEmpty);
   });
 
   test('audio base tempo can be set, halved and doubled, and is remembered', () async {
@@ -148,5 +202,35 @@ void main() {
     await tester.tap(find.text('Merge with next'));
     await tester.pumpAndSettle();
     expect(c.currentSections.length, n);
+  });
+
+  testWidgets('copy sections dialog', (tester) async {
+    late SpartaController c;
+    await tester.runAsync(() async {
+      final (a, store) = await controller();
+      await load(a, otherPath);
+      a.relabelSection(0, SectionKind.outro);
+      c = SpartaController(EngineController(), store: store);
+      await load(c);
+    });
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: c,
+        child: MaterialApp(
+          theme: buildTheme(),
+          home: Scaffold(
+            body: Consumer<SpartaController>(builder: (_, c, _) => SectionChips(base: c.prepared!.base)),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Copy sections from…'));
+    await tester.pumpAndSettle();
+    expect(find.text('other base.mid'), findsOneWidget);
+    expect(find.text('Rewrite the sample notes to match'), findsOneWidget);
+    await tester.tap(find.text('Copy sections'));
+    await tester.pumpAndSettle();
+    expect(c.currentSections.first.kind, SectionKind.outro);
+    expect(c.edits.rewrites, isNotEmpty);
   });
 }
