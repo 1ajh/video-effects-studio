@@ -51,17 +51,59 @@ class FlmNote {
 }
 
 class FlmClip {
-  FlmClip(this.start, this.length, this.offset, this.notes);
+  FlmClip(this.start, this.length, this.offset, this.notes, {this.loop = 0});
+
+  /// Timeline position and length, in beats.
   final double start;
   final double length;
+
+  /// Where in its content the clip starts, in beats.
   final double offset;
+
+  /// Content loop length in beats: a clip stretched past it repeats its
+  /// content (0 = no loop).
+  final double loop;
   final List<FlmNote> notes;
+
+  /// The clip's notes on the timeline: (beat, length, note).
+  Iterable<(double, double, FlmNote)> placed() sync* {
+    final looping = loop >= 0.25 && length / loop < 4096;
+    for (final n in notes) {
+      final at = n.tick / FlmProject.ticksPerBeat;
+      if (looping && at >= loop - 1e-9) continue;
+      var t = at - offset;
+      if (looping) {
+        while (t < -1e-9) {
+          t += loop;
+        }
+      }
+      for (; t < length - 1e-9; t += loop) {
+        if (t >= -1e-9) {
+          var len = n.lengthBeats <= 0 ? 0.25 : n.lengthBeats;
+          len = math.min(len, length - t);
+          if (looping) len = math.min(len, loop - at);
+          yield (start + math.max(0, t), len, n);
+        }
+        if (!looping) break;
+      }
+    }
+  }
 }
 
 class FlmTrack {
-  FlmTrack(this.name);
+  FlmTrack(this.name, {this.kind = 0, this.channel = 0});
   final String name;
+
+  /// Position among the project's channels (the master included).
+  final int channel;
+
+  /// Track type from its descriptor: 0 instrument, 1 master, 2 audio,
+  /// 3 drum kit.
+  final int kind;
   final List<FlmClip> clips = [];
+  Map<int, String> padNames = const {};
+
+  bool get isDrumKit => kind == 3;
 }
 
 /// Reader for FL Studio Mobile `.flm` projects (reverse-engineered: tempo,
@@ -77,6 +119,7 @@ class FlmProject {
   final List<FlmTrack> tracks = [];
   final Map<int, String> padNames = {};
   final List<String> warnings = [];
+  int _channels = 0;
 
   static List<FlmChunk> walk(Uint8List d, int offset, {bool strict = true}) {
     final out = <FlmChunk>[];
@@ -114,16 +157,25 @@ class FlmProject {
     final chunks = walk(bytes, 4, strict: false);
     if (chunks.isEmpty) throw FlmFormatException('unrecognised chunk layout');
     final proj = FlmProject._();
+    final racks = <Map<int, String>>[];
     for (final c in chunks) {
       switch (c.tag) {
         case 'HEAD':
           proj.name = cString(c.data, 8);
           proj.bpm = _findTempo(c.data);
         case 'RACK':
-          proj._readRack(c);
+          racks.add(_readPads(c));
         case 'CHNL':
           proj._readTrack(c);
       }
+    }
+    // Each track (the master included) has its own instrument rack, in the
+    // same order; otherwise the first kit in the project is used.
+    final firstKit = racks.firstWhere((r) => r.isNotEmpty, orElse: () => const {});
+    proj.padNames.addAll(firstKit);
+    for (final t in proj.tracks) {
+      final pads = racks.length == proj._channels ? racks[t.channel] : const <int, String>{};
+      t.padNames = pads.isNotEmpty ? pads : firstKit;
     }
     if (proj.bpm == null) proj.warnings.add('Tempo not found in the project; assuming 140 BPM.');
     return proj;
@@ -141,12 +193,12 @@ class FlmProject {
     return null;
   }
 
-  void _readRack(FlmChunk rack) {
-    // Drum kit pads: SMPl { MAIN(u32, f64 pad, name…), … } inside RSMP.
+  /// Drum kit pads: SMPl { MAIN(i32, f64 pad, name…), … } inside RSMP.
+  static Map<int, String> _readPads(FlmChunk rack) {
     final rsmp = rack.find('RSMP');
-    if (rsmp == null) return;
+    if (rsmp == null) return const {};
     final pads = <int, String>{};
-    for (final smpl in rsmp.childrenAuto().where((c) => c.tag == 'SMPl')) {
+    for (final smpl in rsmp.childrenAuto().where((c) => c.tag == 'SMPl' || c.tag == 'SMPL')) {
       final main = smpl.find('MAIN');
       if (main == null || main.data.length < 13) continue;
       final pad = ByteData.sublistView(main.data).getFloat64(4, Endian.little);
@@ -154,42 +206,56 @@ class FlmProject {
       if (name.isEmpty || name == '<empty>' || pad.isNaN || pad < 0 || pad > 127) continue;
       pads[pad.round()] = name;
     }
-    if (padNames.isEmpty && pads.isNotEmpty) padNames.addAll(pads);
+    return pads;
   }
 
   void _readTrack(FlmChunk chnl) {
     final parts = chnl.childrenAuto();
     String name = '';
+    var kind = 0;
     final clips = <FlmClip>[];
     for (final c in parts) {
       if (c.tag == 'CHHD') name = cString(c.data);
       if (c.tag == 'TRKH') {
-        for (final clip in c.children().where((x) => x.tag == 'CLIP')) {
-          final parsed = readClip(clip, warnings);
+        for (final x in c.children()) {
+          if (x.tag == 'DESc' && x.data.length >= 4) kind = ByteData.sublistView(x.data).getUint32(0, Endian.little);
+          if (x.tag != 'CLIP') continue;
+          final parsed = readClip(x, warnings);
           if (parsed != null) clips.add(parsed);
         }
       }
     }
-    if (name.toUpperCase() == 'MASTER' && clips.isEmpty) return;
-    tracks.add(FlmTrack(name.isEmpty ? 'Track ${tracks.length + 1}' : name)..clips.addAll(clips));
+    final index = _channels++;
+    if (kind == 1 || (name.toUpperCase() == 'MASTER' && clips.isEmpty)) return;
+    tracks.add(
+      FlmTrack(name.isEmpty ? 'Track ${tracks.length + 1}' : name, kind: kind, channel: index)..clips.addAll(clips),
+    );
   }
 
-  /// Decodes one `CLIP` chunk: header (start/length/offset in beats) and
-  /// its `EVN2` note records.
+  /// Decodes one `CLIP` chunk: its timeline position (u32 ticks before the
+  /// container magic), header (loop length, length, content offset in
+  /// beats) and note records. Two generations exist: `CLHd` + `EVN2`
+  /// (u16 record size, then records) and `CLHD`/`CLHd` + `EVNT` (18-byte
+  /// records); both share the record layout (u32 tick, f64 length, u16 key).
   static FlmClip? readClip(FlmChunk clip, [List<String>? warnings]) {
-    final head = clip.find('CLHd');
-    final ev = clip.find('EVN2');
-    if (head == null || head.data.length < 24) return null;
+    final head = clip.find('CLHd') ?? clip.find('CLHD');
+    if (head == null || head.data.length < 24 || clip.data.length < 8) return null;
+    final start = ByteData.sublistView(clip.data).getUint32(0, Endian.little) / ticksPerBeat;
     final hb = ByteData.sublistView(head.data);
-    final start = hb.getFloat64(0, Endian.little);
+    final loop = hb.getFloat64(0, Endian.little);
     final length = hb.getFloat64(8, Endian.little);
     final offset = hb.getFloat64(16, Endian.little);
     final notes = <FlmNote>[];
-    if (ev != null && ev.data.length >= 2) {
+    final ev2 = clip.find('EVN2'), ev = ev2 ?? clip.find('EVNT');
+    if (ev != null && ev.data.isNotEmpty) {
       final eb = ByteData.sublistView(ev.data);
-      final size = eb.getUint16(0, Endian.little);
-      if (size >= 16 && size <= 64) {
-        for (var i = 2; i + size <= ev.data.length; i += size) {
+      var first = 0, size = 18;
+      if (ev2 != null) {
+        size = ev.data.length >= 2 ? eb.getUint16(0, Endian.little) : 0;
+        first = 2;
+      }
+      if (size >= 16 && size <= 64 && (ev2 != null || ev.data.length % size == 0)) {
+        for (var i = first; i + size <= ev.data.length; i += size) {
           final len = eb.getFloat64(i + 4, Endian.little);
           notes.add(
             FlmNote(
@@ -204,41 +270,40 @@ class FlmProject {
         warnings?.add('A clip uses an unknown note layout and was skipped.');
       }
     }
-    if (!start.isFinite || !length.isFinite || length <= 0) return null;
-    return FlmClip(start, length, offset.isFinite ? offset : 0, notes);
+    if (!length.isFinite || length <= 0) return null;
+    return FlmClip(
+      start,
+      length,
+      offset.isFinite && offset > 0 ? offset : 0,
+      notes,
+      loop: loop.isFinite && loop > 0 ? loop : 0,
+    );
   }
 
   ChartSource toChartSource(String path) {
     final out = <ChartTrack>[];
     for (var t = 0; t < tracks.length; t++) {
       final track = tracks[t];
-      final notes = <RawNote>[];
-      for (final c in track.clips) {
-        for (final n in c.notes) {
-          final rel = n.tick / ticksPerBeat - c.offset;
-          if (rel < -1e-9 || rel >= c.length) continue;
-          final len = n.lengthBeats <= 0 ? 0.25 : n.lengthBeats;
-          notes.add(
-            RawNote(
-              c.start + rel,
-              math.min(len, c.length - rel),
-              n.key,
-              velocity: n.velocity == 0 ? 1 : n.velocity / 127,
-            ),
-          );
-        }
-      }
+      final notes = <RawNote>[
+        for (final c in track.clips)
+          for (final (beat, len, n) in c.placed())
+            RawNote(beat, len, n.key, velocity: n.velocity == 0 ? 1 : n.velocity / 127),
+      ];
       if (notes.isEmpty) continue;
       notes.sort((a, b) => a.beat.compareTo(b.beat));
       final lower = track.name.toLowerCase();
-      final kit = lower.contains('drum') || lower.contains('kit') || notes.every((n) => n.key < 16);
+      final kit =
+          track.isDrumKit ||
+          lower.contains('drum') ||
+          lower.contains('kit') ||
+          (track.kind == 0 && notes.every((n) => n.key < 16));
       out.add(
         ChartTrack(
           id: 't$t',
           name: track.name,
           notes: notes,
           drumKit: kit,
-          padNames: kit ? padNames : const {},
+          padNames: kit ? track.padNames : const {},
           detail: '${track.clips.length} clip${track.clips.length == 1 ? '' : 's'}',
         ),
       );

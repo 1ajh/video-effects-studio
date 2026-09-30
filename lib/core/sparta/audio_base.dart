@@ -40,6 +40,16 @@ class AudioBaseAnalysis {
   double get barSeconds => 4 * 60 / bpm;
 }
 
+class _Flux {
+  _Flux(int frames)
+    : full = Float64List(frames),
+      sub = Float64List(frames),
+      low = Float64List(frames),
+      mid = Float64List(frames),
+      high = Float64List(frames);
+  final Float64List full, sub, low, mid, high;
+}
+
 /// Beat/tempo/downbeat tracking, chord roots and sectioning for audio bases.
 class AudioBaseAnalyzer {
   static const sampleRate = 22050;
@@ -65,9 +75,17 @@ class AudioBaseAnalyzer {
     if (frames < 400) throw ArgumentError('Audio is too short to analyse as a base.');
 
     // Onsets ------------------------------------------------------------------
-    final (flux, lowFlux) = _onsetFlux(x, frames);
-    final onset = _whiten(flux);
-    final kick = _whiten(lowFlux);
+    final flux = _onsetFlux(x, frames);
+    final onset = _whiten(flux.full);
+    final kick = _whiten(flux.low);
+    final mid = _whiten(flux.mid);
+    final high = _whiten(flux.high);
+    // Kicks and snares sit on the beat; open hats (loud, and everywhere in
+    // Sparta bases) sit between beats, so the full band can't place beats.
+    final onBeat = Float64List(frames);
+    for (var i = 0; i < frames; i++) {
+      onBeat[i] = kick[i] + mid[i];
+    }
     final fps = sampleRate / hop;
     // Frame index → seconds of the attack it reports.
     double timeOf(double frame) => (frame * hop + window / 2) / sampleRate + onsetLatency;
@@ -130,20 +148,51 @@ class AudioBaseAnalyzer {
       bpm = (bpm * 2).round() / 2;
     }
     final period = fps * 60 / bpm;
-    bestPhase = _bestPhase(onset, period, frames).$1;
+    bestPhase = _bestPhase(onBeat, period, frames).$1;
 
-    // Downbeat: which of four beats carries the strongest low-end hits and
-    // bass-note changes.
-    final beats = <double>[for (var t = bestPhase; t < frames - 1; t += period) t];
-    var bestBar = 0;
-    var bestBarScore = -1.0;
-    for (var b = 0; b < 4; b++) {
-      var s = 0.0;
-      for (var i = b; i < beats.length; i += 4) {
-        s += _at(kick, beats[i]) + 0.6 * _bassChange(bass, timeOf(beats[i]), 60 / bpm, chromaTime);
+    // Downbeat. In real Sparta bases the kick hits every beat but most on
+    // beat 1, the snare 2 and 4, and the bass/chords change on the bar
+    // line; sections (energy jumps) start on beat 1 or 3. Each cue is
+    // compared across the four beat positions, relative to its average.
+    final sub = _whiten(flux.sub);
+    final beatSec = 60 / bpm;
+    final subAt = List<double>.filled(4, 0), lowAt = List<double>.filled(4, 0), highAt = List<double>.filled(4, 0);
+    final jumpAt = List<double>.filled(4, 0), bassAt = List<double>.filled(4, 0);
+    double? lastRms;
+    var i = 0;
+    for (var t = bestPhase; t < frames - 1; t += period, i++) {
+      final b = i % 4;
+      subAt[b] += _at(sub, t);
+      lowAt[b] += _at(kick, t);
+      highAt[b] += _at(high, t);
+      bassAt[b] += _bassChange(bass, timeOf(t), beatSec, chromaTime);
+      final rms = _rms(x, timeOf(t), timeOf(t) + beatSec) + 1e-6;
+      if (lastRms != null) {
+        final db = gainToDb(rms / lastRms);
+        if (db > 2) jumpAt[b] += db;
       }
-      if (s > bestBarScore) {
-        bestBarScore = s;
+      lastRms = rms;
+    }
+    List<double> rel(List<double> v) {
+      final m = v.fold<double>(0, (a, b) => a + b) / 4 + 1e-9;
+      return [for (final x in v) x / m];
+    }
+
+    final cues = [rel(subAt), rel(lowAt), rel(highAt), rel(jumpAt), rel(bassAt)];
+    double single(List<double> v, int b) => v[b] - (v[(b + 1) % 4] + v[(b + 2) % 4] + v[(b + 3) % 4]) / 3;
+    double halfBar(List<double> v, int b) => v[b] + v[(b + 2) % 4] - v[(b + 1) % 4] - v[(b + 3) % 4];
+    var bestBar = 0;
+    var bestBarScore = double.negativeInfinity;
+    for (var b = 0; b < 4; b++) {
+      final score =
+          2 * single(cues[0], b) + // sub kick on 1
+          halfBar(cues[1], b) + // kicks on 1 and 3
+          -0.5 * halfBar(cues[2], b) + // snare on 2 and 4
+          halfBar(cues[3], b) +
+          0.25 * single(cues[3], b) + // sections start on 1 (or 3)
+          2 * single(cues[4], b); // bass/chord changes on 1
+      if (score > bestBarScore) {
+        bestBarScore = score;
         bestBar = b;
       }
     }
@@ -157,7 +206,11 @@ class AudioBaseAnalyzer {
     final duration = x.length / sampleRate;
     final bars = math.max(1, ((duration - downbeat) / barSec).floor());
 
-    // Per-bar harmony and energy.
+    // Per-bar harmony and energy. Kicks hit nearly every beat and their
+    // tuned body reads as a constant bass "note" (as does any drone), so each
+    // pitch class's floor is removed first, leaving the parts that move.
+    final harm = _withoutFloor(chroma, cFrames), harmBass = _withoutFloor(bass, cFrames);
+    final total = Float64List(12);
     final barChroma = <Float64List>[];
     final barBass = <Float64List>[];
     final energy = <double>[];
@@ -170,35 +223,16 @@ class AudioBaseAnalyzer {
         // The first half of the bar defines its chord most.
         final weight = t < t0 + barSec / 2 ? 1.5 : 1.0;
         for (var p = 0; p < 12; p++) {
-          c[p] += chroma[fr * 12 + p] * weight;
-          bb[p] += bass[fr * 12 + p] * weight;
+          c[p] += harm[fr * 12 + p] * weight;
+          bb[p] += harmBass[fr * 12 + p] * weight;
+          total[p] += harm[fr * 12 + p];
         }
       }
       barChroma.add(c);
       barBass.add(bb);
-      final a = ((downbeat + b * barSec) * sampleRate).round().clamp(0, x.length);
-      final z = ((downbeat + (b + 1) * barSec) * sampleRate).round().clamp(a, x.length);
-      var e = 0.0;
-      for (var i = a; i < z; i++) {
-        e += x[i] * x[i];
-      }
-      energy.add(z > a ? math.sqrt(e / (z - a)) : 0);
+      energy.add(_rms(x, t0, t1));
     }
-    final total = Float64List(12);
-    for (var b = 0; b < bars; b++) {
-      final nb = _norm(barBass[b]), nc = _norm(barChroma[b]);
-      for (var p = 0; p < 12; p++) {
-        total[p] += nb[p] * 2 + nc[p];
-      }
-    }
-    final bassTotal = Float64List(12);
-    for (var b = 0; b < bars; b++) {
-      final nb = _norm(barBass[b]);
-      for (var p = 0; p < 12; p++) {
-        bassTotal[p] += nb[p];
-      }
-    }
-    final tonic = _tonic(total, bassTotal);
+    final tonic = _tonic(total);
     final roots = <int>[];
     for (var b = 0; b < bars; b++) {
       final nb = _norm(barBass[b]), nc = _norm(barChroma[b]);
@@ -224,13 +258,18 @@ class AudioBaseAnalyzer {
     );
   }
 
-  static (Float64List, Float64List) _onsetFlux(Float32List x, int frames) {
-    final flux = Float64List(frames);
-    final lowFlux = Float64List(frames);
+  /// Spectral flux per frame: full band, plus low (< 160 Hz: kick, bass),
+  /// mid (160 Hz–2 kHz: snare body, stabs) and high (2–8 kHz: snare noise,
+  /// hats, cymbals) bands.
+  static _Flux _onsetFlux(Float32List x, int frames) {
+    final flux = _Flux(frames);
     final fft = Fft(window);
     final w = hann(window);
     final bins = window ~/ 2;
+    final subBin = (110 * window / sampleRate).floor();
     final lowBin = (160 * window / sampleRate).ceil();
+    final midBin = (2000 * window / sampleRate).ceil();
+    final highBin = (8000 * window / sampleRate).ceil();
     final re = Float64List(window), im = Float64List(window);
     var prev = Float64List(bins), cur = Float64List(bins);
     for (var fr = 0; fr < frames; fr++) {
@@ -240,23 +279,33 @@ class AudioBaseAnalyzer {
         im[i] = 0;
       }
       fft.transform(re, im);
-      var sf = 0.0, lf = 0.0;
+      var sf = 0.0, bf = 0.0, lf = 0.0, mf = 0.0, hf = 0.0;
       for (var k = 1; k < bins; k++) {
         final lm = math.log(1 + 100 * math.sqrt(re[k] * re[k] + im[k] * im[k]));
         cur[k] = lm;
         final d = lm - prev[k];
         if (d > 0) {
           sf += d;
-          if (k <= lowBin) lf += d;
+          if (k <= subBin) bf += d;
+          if (k <= lowBin) {
+            lf += d;
+          } else if (k <= midBin) {
+            mf += d;
+          } else if (k <= highBin) {
+            hf += d;
+          }
         }
       }
-      flux[fr] = sf;
-      lowFlux[fr] = lf;
+      flux.full[fr] = sf;
+      flux.sub[fr] = bf;
+      flux.low[fr] = lf;
+      flux.mid[fr] = mf;
+      flux.high[fr] = hf;
       final t = prev;
       prev = cur;
       cur = t;
     }
-    return (flux, lowFlux);
+    return flux;
   }
 
   /// Finds where beat 0 of a chart lands in its audio render: the offset
@@ -273,25 +322,25 @@ class AudioBaseAnalyzer {
     double maxOffset = 8,
     double? firstNoteSeconds,
   }) {
-    if (hitSeconds.isEmpty) return 0;
     final mono = audio.mono();
     final x = mono.sampleRate == sampleRate
         ? mono.data
         : resample(mono.data, mono.sampleRate / sampleRate, sampleRate: mono.sampleRate);
     final frames = math.max(0, (x.length - window) ~/ hop + 1);
-    if (frames < 10) return 0;
-    final onset = _whiten(_onsetFlux(x, frames).$1);
+    double? anchor;
+    if (firstNoteSeconds != null) {
+      final first = _firstSound(x);
+      if (first != null) anchor = (first - firstNoteSeconds).clamp(minOffset, maxOffset);
+    }
+    if (hitSeconds.isEmpty || frames < 10) return anchor ?? 0;
+    final onset = _whiten(_onsetFlux(x, frames).full);
     final fps = sampleRate / hop;
     final base = (window / 2) / sampleRate + onsetLatency;
     var lo = minOffset, hi = maxOffset;
-    if (firstNoteSeconds != null) {
-      final first = _firstSound(x);
-      if (first != null) {
-        final anchor = first - firstNoteSeconds;
-        lo = math.max(minOffset, anchor - 0.12);
-        hi = math.min(maxOffset, anchor + 0.12);
-        if (hi < lo) return anchor.clamp(minOffset, maxOffset);
-      }
+    if (anchor != null) {
+      lo = math.max(minOffset, anchor - 0.12);
+      hi = math.min(maxOffset, anchor + 0.12);
+      if (hi < lo) return anchor;
     }
     final hits = hitSeconds.take(400).toList();
     var best = lo, bestScore = -1.0;
@@ -306,6 +355,15 @@ class AudioBaseAnalyzer {
       }
     }
     return best;
+  }
+
+  static double _rms(Float32List x, double from, double to) {
+    final a = (from * sampleRate).round().clamp(0, x.length), z = (to * sampleRate).round().clamp(a, x.length);
+    var e = 0.0;
+    for (var i = a; i < z; i++) {
+      e += x[i] * x[i];
+    }
+    return z > a ? math.sqrt(e / (z - a)) : 0;
   }
 
   /// Time of the first sound above −40 dB relative to the loudest 10 ms.
@@ -453,11 +511,10 @@ class AudioBaseAnalyzer {
     return (bestPhase, bestScore);
   }
 
-  static int _tonic(Float64List pc, Float64List bassPc) {
-    final total = pc.fold<double>(0, (a, b) => a + b) + 1e-12;
-    final bassTotal = bassPc.fold<double>(0, (a, b) => a + b) + 1e-12;
-    // Scale fit, plus how often the bass sits on the candidate tonic.
-    double fit(int o) => phrygian.fold(0.0, (s, d) => s + pc[(o + d) % 12]) / total + 1.5 * bassPc[o] / bassTotal;
+  /// Root of the Phrygian mode (the Sparta tonality) that fits the pitch
+  /// content best; D on near-ties.
+  static int _tonic(Float64List pc) {
+    double fit(int o) => phrygian.fold(0.0, (s, d) => s + pc[(o + d) % 12]);
     var best = 2;
     for (var o = 0; o < 12; o++) {
       if (fit(o) > fit(best) * 1.03) best = o;
@@ -465,12 +522,30 @@ class AudioBaseAnalyzer {
     return best;
   }
 
+  /// [v] (frames × 12) minus each pitch class's 35th percentile over time.
+  static Float64List _withoutFloor(Float64List v, int frames) {
+    final out = Float64List(v.length);
+    final column = Float64List(frames);
+    for (var p = 0; p < 12; p++) {
+      for (var f = 0; f < frames; f++) {
+        column[f] = v[f * 12 + p];
+      }
+      final sorted = Float64List.fromList(column)..sort();
+      final floor = sorted[((frames - 1) * 0.35).floor()];
+      for (var f = 0; f < frames; f++) {
+        out[f * 12 + p] = math.max(0, column[f] - floor);
+      }
+    }
+    return out;
+  }
+
   static Float64List _norm(Float64List v) {
     final s = v.fold<double>(0, (a, b) => a + b);
     return s <= 0 ? Float64List(12) : Float64List.fromList([for (final x in v) x / s]);
   }
 
-  /// Local-mean-subtracted, half-wave rectified, unit-max envelope.
+  /// Local-mean-subtracted, half-wave rectified envelope, scaled so its
+  /// strong onsets sit near 1.
   static Float64List _whiten(Float64List x) {
     final n = x.length;
     final out = Float64List(n);
@@ -483,10 +558,14 @@ class AudioBaseAnalyzer {
       final lo = math.max(0, i - r), hi = math.min(n, i + r + 1);
       out[i] = math.max(0, x[i] - (prefix[hi] - prefix[lo]) / (hi - lo));
     }
-    final peak = out.fold<double>(0, math.max);
-    if (peak > 0) {
-      for (var i = 0; i < out.length; i++) {
-        out[i] /= peak;
+    // Scale by the 99th percentile, not the peak, and cap outliers: one huge
+    // onset (a part entering from silence) must not flatten all the others.
+    final sorted = Float64List.fromList(out)..sort();
+    var scale = sorted[((n - 1) * 0.99).floor()];
+    if (scale <= 0) scale = sorted.isEmpty ? 0 : sorted.last;
+    if (scale > 0) {
+      for (var i = 0; i < n; i++) {
+        out[i] = math.min(1.5, out[i] / scale);
       }
     }
     return out;

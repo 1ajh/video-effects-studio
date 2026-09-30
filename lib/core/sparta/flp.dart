@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 
 import 'base.dart';
 import 'chart_import.dart';
-import 'model.dart';
 
 class FlpFormatException implements Exception {
   FlpFormatException(this.message);
@@ -312,18 +311,16 @@ class FlpProject {
       if (ordered.isNotEmpty) warn.add('No playlist found; patterns were chained in order.');
     }
 
-    // Section markers: time markers, else section-named pattern clips.
+    // Section markers: time markers, else where section-named patterns play.
     final marks = [for (final m in markers) ChartMarker(m.$1 / ppqD, m.$2)];
     if (marks.isEmpty) {
-      final sorted = [...clips]..sort((a, b) => a.position.compareTo(b.position));
-      String? last;
-      for (final c in sorted) {
-        final name = patterns[c.pattern]?.name;
-        if (name == null || sectionKindFor(name) == SectionKind.other || name == last) continue;
-        if (marks.isNotEmpty && (c.position / ppqD - marks.last.beat).abs() < 1e-6) continue;
-        marks.add(ChartMarker(c.position / ppqD, name));
-        last = name;
-      }
+      marks.addAll(
+        markersFromNamedParts([
+          for (final c in clips)
+            if (patterns[c.pattern]?.name case final name?)
+              (beat: c.position / ppqD, length: c.length / ppqD, name: name),
+        ], timeSigNum),
+      );
     }
 
     final byIndex = {for (final c in channels) c.index: c};

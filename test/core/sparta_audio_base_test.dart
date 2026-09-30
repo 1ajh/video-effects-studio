@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -50,4 +51,66 @@ void main() {
       expect(base.audioOffset, a.firstDownbeat);
     });
   }
+
+  test('finds beat 1 under loud off-beat open hats and reads G minor over a tuned kick', () {
+    // What fooled the analyser on real Sparta bases: open hats between the
+    // beats louder than anything on them, a tuned kick on every beat (a
+    // constant "note"), snare on 2 and 4, and a natural-minor progression.
+    const sr = 22050, bpm = 140.0, bars = 24, lead = 0.61;
+    final beat = 60 / bpm;
+    final x = Float32List(((lead + bars * 4 * beat + 1) * sr).round());
+    final rng = math.Random(3);
+    void add(double at, double seconds, double Function(double t) f) {
+      final a = (at * sr).round();
+      for (var i = 0; i < seconds * sr && a + i < x.length; i++) {
+        x[a + i] += f(i / sr);
+      }
+    }
+
+    // G minor, E-flat, F, D minor: all in G natural minor (= D Phrygian).
+    const chords = [
+      [55.0, 58.0, 62.0],
+      [51.0, 55.0, 58.0],
+      [53.0, 57.0, 60.0],
+      [50.0, 53.0, 57.0],
+    ];
+    double hz(double midi) => 440 * math.pow(2, (midi - 69) / 12).toDouble();
+    var hatPrev = 0.0;
+    for (var b = 0; b < bars; b++) {
+      final t0 = lead + b * 4 * beat;
+      final chord = chords[b % 4];
+      add(t0, 4 * beat, (t) {
+        var v = 0.3 * math.sin(2 * math.pi * hz(chord[0] - 12) * t);
+        for (final n in chord) {
+          v += 0.06 * math.sin(2 * math.pi * hz(n) * t);
+        }
+        return v * math.min(1, t * 50);
+      });
+      for (var k = 0; k < 4; k++) {
+        final tb = t0 + k * beat;
+        // Kick tuned to E2 (not in the key), louder on beat 1.
+        add(
+          tb,
+          0.3,
+          (t) =>
+              (k == 0 ? 0.9 : 0.7) *
+              math.sin(2 * math.pi * (82 * t + 60 * (1 - math.exp(-t * 30)) / 30)) *
+              math.exp(-t * 9),
+        );
+        if (k.isOdd) add(tb, 0.15, (t) => 0.5 * (rng.nextDouble() * 2 - 1) * math.exp(-t * 25));
+        // Open hat on the off-beat: bright (differenced) noise, the loudest hit.
+        add(tb + beat / 2, 0.2, (t) {
+          final n = rng.nextDouble() * 2 - 1, v = n - hatPrev;
+          hatPrev = n;
+          return 0.9 * v * math.exp(-t * 14);
+        });
+      }
+    }
+    final a = AudioBaseAnalyzer().analyze(AudioBuffer(x, sampleRate: sr));
+    expect(a.bpm, closeTo(bpm, 0.5));
+    final bar = 4 * beat;
+    final err = ((a.firstDownbeat - lead) / bar - ((a.firstDownbeat - lead) / bar).round()) * bar;
+    expect(err.abs(), lessThan(0.03), reason: 'bar 1 at ${a.firstDownbeat}');
+    expect(a.tonicPc, 2, reason: 'G minor shares D Phrygian\'s notes');
+  });
 }

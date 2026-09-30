@@ -189,10 +189,17 @@ class SpartaEngine {
           final audio = await AudioBuffer.decode(ffmpegPath, s.audioPath!, channels: 2);
           var offset = s.audioOffset;
           if (offset == null) {
-            final hits = [
-              for (final n in base.chart)
-                if (n.role == SampleRole.kick || n.role == SampleRole.snare) base.seconds(n.beat),
+            // Line up the base's own parts (its drums, else everything it
+            // plays) with the audio; the sample chart isn't in the audio.
+            final own = [
+              for (final t in chart.tracks)
+                if (mapping[t.id] == null) t,
             ];
+            final drums = own.where((t) => t.isDrums).toList();
+            final hits = [
+              for (final t in drums.isNotEmpty ? drums : own)
+                for (final n in t.notes) base.seconds(n.beat),
+            ]..sort();
             final firstNote = chart.tracks
                 .expand((t) => t.notes)
                 .fold<double?>(null, (m, n) => m == null || n.beat < m ? n.beat : m);

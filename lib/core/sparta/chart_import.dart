@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'base.dart';
 import 'composer.dart';
 import 'model.dart';
+import 'sectioning.dart';
 
 /// A note read from a MIDI/FLP/FLM project, in beats.
 class RawNote {
@@ -244,7 +245,8 @@ class ChartSource {
     return out;
   }
 
-  /// Sections from markers when present, otherwise from note density.
+  /// Sections from markers when present, otherwise from how the project's
+  /// parts play (see [sectionsFromTracks]).
   List<Section> inferSections(List<ChartNote> chart, double length) {
     final named = markers.where((m) => m.beat < length).toList()..sort((a, b) => a.beat.compareTo(b.beat));
     if (named.isNotEmpty) {
@@ -257,6 +259,8 @@ class ChartSource {
       }
       if (out.isNotEmpty) return out;
     }
+    final fromParts = sectionsFromTracks(tracks, (length / beatsPerBar).round(), beatsPerBar);
+    if (fromParts.isNotEmpty) return fromParts;
     return autoSections(chart, length, beatsPerBar);
   }
 }
@@ -293,6 +297,64 @@ List<Section> autoSections(List<ChartNote> chart, double length, int beatsPerBar
   return [for (var i = 0; i < count; i++) Section(kinds[i], i * block, math.min(length, (i + 1) * block))];
 }
 
+/// Section markers from where section-named parts play (FL patterns named
+/// "perc intro", "madness bassline"…): each bar takes the section most of
+/// its named parts belong to; bars with none continue the previous one.
+/// Empty when names cover too little of the project to trust.
+List<ChartMarker> markersFromNamedParts(List<({double beat, double length, String name})> parts, int beatsPerBar) {
+  final bpb = beatsPerBar.toDouble();
+  final named = [
+    for (final x in parts)
+      if (x.length > 0 && sectionKindFor(x.name) != SectionKind.other) x,
+  ];
+  if (named.isEmpty) return const [];
+  final bars = (parts.map((x) => x.beat + x.length).reduce(math.max) / bpb).ceil();
+  final votes = List.generate(bars, (_) => <SectionKind, double>{});
+  final labels = List.generate(bars, (_) => <String, double>{});
+  for (final x in named) {
+    final kind = sectionKindFor(x.name);
+    for (var b = (x.beat / bpb).floor(); b < bars && b * bpb < x.beat + x.length; b++) {
+      final overlap = math.min((b + 1) * bpb, x.beat + x.length) - math.max(b * bpb, x.beat);
+      if (overlap <= 0) continue;
+      votes[b][kind] = (votes[b][kind] ?? 0) + overlap;
+      labels[b][x.name.trim()] = (labels[b][x.name.trim()] ?? 0) + overlap;
+    }
+  }
+  final kinds = List<SectionKind?>.filled(bars, null);
+  var voted = 0;
+  for (var b = 0; b < bars; b++) {
+    if (votes[b].isEmpty) {
+      if (b > 0) kinds[b] = kinds[b - 1];
+      continue;
+    }
+    voted++;
+    kinds[b] = votes[b].entries.reduce((a, z) => z.value > a.value ? z : a).key;
+  }
+  if (voted < bars * 0.4 || kinds.whereType<SectionKind>().toSet().length < 2) return const [];
+  // Runs of one bar are fills or pickups: fold them into their neighbours.
+  for (var b = 0; b < bars; b++) {
+    final k = kinds[b];
+    if (k == null) continue;
+    final single = (b == 0 || kinds[b - 1] != k) && (b + 1 >= bars || kinds[b + 1] != k);
+    if (single) kinds[b] = b > 0 && kinds[b - 1] != null ? kinds[b - 1] : (b + 1 < bars ? kinds[b + 1] : k);
+  }
+  final out = <ChartMarker>[];
+  for (var b = 0; b < bars; b++) {
+    final k = kinds[b];
+    if (k == null || (b > 0 && kinds[b - 1] == k)) continue;
+    // Label the run by its most-played name of that kind.
+    final names = <String, double>{};
+    for (var e = b; e < bars && kinds[e] == k; e++) {
+      for (final l in labels[e].entries) {
+        if (sectionKindFor(l.key) == k) names[l.key] = (names[l.key] ?? 0) + l.value;
+      }
+    }
+    final name = names.isEmpty ? k.label : names.entries.reduce((a, z) => z.value > a.value ? z : a).key;
+    out.add(ChartMarker(b * bpb, name));
+  }
+  return out;
+}
+
 SectionKind sectionKindFor(String name) {
   final s = name.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
   if (s.contains('intro') || s.contains('quote') || s.contains('begin')) return SectionKind.intro;
@@ -326,17 +388,23 @@ SampleRole? guessRole(String name, [String detail = '']) {
   return null;
 }
 
-/// Drum sound implied by a name (channel, pad or sample file).
+/// Drum sound implied by a name (channel, pad or sample file), e.g.
+/// "Grv Kick 17", "VEC4 Open HH 031", "Attack OHat 06", "FPC_SdSt_B_004".
 Instrument? drumForName(String name, [String detail = '']) {
-  final s = ' ${name.toLowerCase()} ${detail.toLowerCase()} ';
+  final s = ' ${'$name $detail'.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ')} ';
   bool has(List<String> w) => w.any(s.contains);
-  if (has(const ['kick', ' bd ', 'bassdrum', 'bass drum', 'kik'])) return Instrument.kick;
+  if (has(const ['kick', ' bd ', 'bassdrum', 'bass drum', ' kik'])) return Instrument.kick;
   if (has(const ['clap'])) return Instrument.clap;
-  if (has(const ['snare', ' sd ', 'snr', 'rim'])) return Instrument.snare;
-  if (has(const ['open hat', 'openhat', ' oh ', 'ohh', 'hat open'])) return Instrument.openHat;
-  if (has(const ['hat', ' hh ', ' ch ', 'hihat', 'shaker'])) return Instrument.hat;
-  if (has(const ['crash', 'cymbal', 'ride', 'splash'])) return Instrument.crash;
-  if (has(const ['tom', 'timpani', 'taiko'])) return Instrument.tom;
+  if (has(const ['snare', ' sd ', 'sdst', ' snr', ' rim'])) return Instrument.snare;
+  // Short words only at a word start ("Custom" is no tom, "Phat" no hat).
+  final hat = has(const [' hat', 'hihat', 'ohat', 'closedhat', ' hh', 'clhh', ' ch ', 'shaker']);
+  if (has(const ['ohat', ' oh ', 'ohh', 'hatopen', 'openhat', 'ophh', 'hat op ', 'hh op ']) ||
+      (hat && has(const [' open', ' op ']))) {
+    return Instrument.openHat;
+  }
+  if (hat) return Instrument.hat;
+  if (has(const ['crash', 'cymbal', ' ride', 'splash'])) return Instrument.crash;
+  if (has(const [' tom', 'timpani', 'taiko', ' perc', 'bongo', 'conga'])) return Instrument.tom;
   if (has(const ['riser', 'sweep', 'uplifter'])) return Instrument.riser;
   return null;
 }
@@ -367,8 +435,13 @@ Instrument drumForKey(int key, {bool pads = false}) {
   };
 }
 
-/// Pitch class (C = 0) of the tonic that makes the notes fit a Phrygian
-/// mode best (the Sparta tonality); D = 2 on near-ties.
+/// Pitch class (C = 0) of the Phrygian mode (the Sparta tonality) whose
+/// notes cover the project's pitches best; D = 2 on near-ties.
+///
+/// Only the note collection matters: the sample chart follows the base's
+/// own bar roots, and its passing tones stay inside this collection. (A
+/// G-minor base reads as D Phrygian, the same seven notes; calling it
+/// G Phrygian would put A♭ against its A.)
 int tonicPitchClass(List<RawNote> notes) {
   final pc = List<double>.filled(12, 0);
   final low = notes.map((n) => n.key).fold<int>(127, math.min);
@@ -377,7 +450,7 @@ int tonicPitchClass(List<RawNote> notes) {
     final weight = math.max(0.125, n.length) * (n.key < low + 12 ? 2 : 1);
     pc[n.key % 12] += weight;
   }
-  double fit(int o) => phrygian.fold(0.0, (s, d) => s + pc[(o + d) % 12]) + pc[o % 12] * 0.5;
+  double fit(int o) => phrygian.fold(0.0, (s, d) => s + pc[(o + d) % 12]);
   var best = 2;
   var bestFit = fit(2);
   for (var o = 0; o < 12; o++) {

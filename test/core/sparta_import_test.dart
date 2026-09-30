@@ -176,6 +176,22 @@ void main() {
       expect(base.lane(SampleRole.kick), hasLength(16));
     });
 
+    test('reads older projects: clip positions, loops, offsets and per-track kits', () {
+      final proj = FlmProject.parse(_FlmWriter.oldFormat());
+      expect(proj.bpm, 150);
+      expect(proj.tracks.map((t) => t.name), ['Pluck', 'Beat']);
+      final src = proj.toChartSource('/x/old.flm');
+      final pluck = src.tracks.firstWhere((t) => t.name == 'Pluck');
+      // The 4-beat loop plays twice; the trimmed clip starts 1 beat in.
+      expect(pluck.notes.map((n) => n.beat), [8, 10, 12, 14, 20, 21]);
+      expect(pluck.notes.map((n) => n.key), [62, 65, 62, 65, 63, 65]);
+      expect(pluck.drumKit, isFalse);
+      final beat = src.tracks.firstWhere((t) => t.name == 'Beat');
+      expect(beat.drumKit, isTrue);
+      expect(beat.padNames, {0: 'Big Boom', 1: 'Crack Snare'});
+      expect(beat.notes.map(beat.instrumentFor).toSet(), {Instrument.kick, Instrument.snare});
+    });
+
     test('rejects other files', () {
       expect(() => FlmProject.parse(Uint8List(40)), throwsA(isA<FlmFormatException>()));
     });
@@ -356,52 +372,117 @@ class _FlmWriter {
     return b.done();
   }
 
-  static List<int> container(String tag, String magic, List<List<int>> children) =>
-      chunk(tag, [0, 0, 0, 0, ...ascii.encode(magic), for (final c in children) ...c]);
+  /// Containers start with a u32 (a clip's position in ticks, else 0) and a
+  /// 4-byte magic.
+  static List<int> container(String tag, String magic, List<List<int>> children, {int prefix = 0}) =>
+      chunk(tag, [...(_Bytes()..u32(prefix)).done(), ...ascii.encode(magic), for (final c in children) ...c]);
 
   static List<int> padded(String s, int n) => [...utf8.encode(s), ...List.filled(n - utf8.encode(s).length, 0)];
 
-  static List<int> clip(double start, double length, List<(int tick, double len, int key)> notes) {
+  /// A clip at [start] beats. Newer apps write `CLHd` + `EVN2` (sized
+  /// records); older ones `CLHD` + `EVNT` (bare 18-byte records).
+  static List<int> clip(
+    double start,
+    double length,
+    List<(int tick, double len, int key)> notes, {
+    double loop = 0,
+    double offset = 0,
+    bool old = false,
+  }) {
     final h = _Bytes()
-      ..f64(start)
+      ..f64(loop)
       ..f64(length)
-      ..f64(0)
+      ..f64(offset)
       ..u32(1)
-      ..zeros(9);
+      ..zeros(old ? 0 : 9);
     final z = _Bytes()..zeros(32);
-    final e = _Bytes()..u16(20);
+    final e = _Bytes();
+    if (!old) e.u16(20);
     for (final n in notes) {
       e
         ..u32(n.$1)
         ..f64(n.$2)
         ..u16(n.$3)
-        ..raw([0xB2, 0x7F, 0xFF, 0x7F, 0, 0]);
+        ..raw([
+          0xB2,
+          0x7F,
+          0xFF,
+          0x7F,
+          if (!old) ...[0, 0],
+        ]);
     }
-    return container('CLIP', '20LC', [chunk('CLHd', h.done()), chunk('ZOOM', z.done()), chunk('EVN2', e.done())]);
+    return container('CLIP', old ? '10LC' : '20LC', [
+      chunk(old ? 'CLHD' : 'CLHd', h.done()),
+      chunk('ZOOM', z.done()),
+      chunk(old ? 'EVNT' : 'EVN2', e.done()),
+    ], prefix: (start * 128).round());
   }
 
-  static List<int> track(String name, List<List<int>> clips) => container('CHNL', '20HC', [
-    chunk('CHHD', padded(name, 1080)),
-    chunk('TRKH', [...chunk('DESc', List.filled(16, 0)), for (final c in clips) ...c]),
-  ]);
+  /// [kind]: 0 instrument, 1 master, 2 audio, 3 drum kit.
+  static List<int> track(String name, List<List<int>> clips, {int kind = 0, bool old = false}) =>
+      container('CHNL', old ? '10HC' : '20HC', [
+        chunk('CHHD', padded(name, 1080)),
+        chunk('TRKH', [
+          ...chunk(
+            'DESc',
+            (_Bytes()
+                  ..u32(kind)
+                  ..zeros(12))
+                .done(),
+          ),
+          for (final c in clips) ...c,
+        ]),
+      ]);
 
-  static List<int> pad(int index, String name) {
+  static List<int> pad(int index, String name, {bool old = false}) {
     final main = _Bytes()
       ..i32(-1)
       ..f64(index.toDouble())
       ..raw(padded(name, 64));
-    return chunk('SMPl', [...ascii.encode('20LS'), ...chunk('MAIN', main.done())]);
+    return chunk(old ? 'SMPL' : 'SMPl', [...ascii.encode(old ? '10LS' : '20LS'), ...chunk('MAIN', main.done())]);
   }
 
-  static Uint8List sample() {
-    final head = _Bytes()
+  static List<int> rack([List<List<int>> pads = const []]) => container('RACK', '10KR', [
+    chunk('RHED', List.filled(16, 0xFF)),
+    container('RSMP', '10MS', [chunk('PADS', List.generate(22, (i) => i)), ...pads]),
+  ]);
+
+  static List<int> head(String name, double bpm) {
+    final h = _Bytes()
       ..u32(1)
       ..u32(0)
-      ..raw(padded('test base', 256))
+      ..raw(padded(name, 256))
       ..zeros(8)
-      ..f64(140)
+      ..f64(bpm)
       ..f64(4.5)
       ..zeros(40);
+    return chunk('HEAD', h.done());
+  }
+
+  /// An older-app project: one rack per channel, in order.
+  static Uint8List oldFormat() => Uint8List.fromList([
+    ...ascii.encode('10LF'),
+    ...head('old base', 150),
+    ...rack(),
+    ...rack(),
+    ...rack([pad(0, 'Big Boom', old: true), pad(1, 'Crack Snare', old: true)]),
+    ...track('MASTER', [], kind: 1, old: true),
+    ...track('Pluck', [
+      // A 4-beat loop stretched to 8 beats, then a clip trimmed by 1 beat.
+      clip(8, 8, [(0, 1, 62), (256, 1, 65)], loop: 4, old: true),
+      clip(20, 2, [(0, 1, 62), (128, 1, 63), (256, 1, 65)], offset: 1, old: true),
+    ], old: true),
+    ...track(
+      'Beat',
+      [
+        clip(0, 4, [(0, 0.125, 0), (128, 0.125, 1), (256, 0.125, 0), (384, 0.125, 1)], old: true),
+      ],
+      kind: 3,
+      old: true,
+    ),
+  ]);
+
+  static Uint8List sample() {
     final rack = container('RACK', '10KR', [
       chunk('RHED', List.filled(16, 0xFF)),
       container('RSMP', '10MS', [
@@ -424,7 +505,7 @@ class _FlmWriter {
     final master = container('CHNL', '20HC', [chunk('CHHD', padded('MASTER', 1080))]);
     return Uint8List.fromList([
       ...ascii.encode('10LF'),
-      ...chunk('HEAD', head.done()),
+      ...head('test base', 140),
       ...chunk('TDIV', [4, 4]),
       ...rack,
       ...master,
