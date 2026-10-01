@@ -5,10 +5,12 @@ import 'dart:math' as math;
 import 'package:path/path.dart' as p;
 
 import '../audio/audio_buffer.dart';
+import '../audio/dsp.dart';
 import '../ffmpeg/ffmpeg_runner.dart';
 import '../models/output_settings.dart';
 import 'arranger.dart';
 import 'audio_base.dart';
+import 'audio_sections.dart';
 import 'audio_transcriber.dart';
 import 'base.dart';
 import 'base_library.dart';
@@ -330,7 +332,7 @@ class SpartaEngine {
     double? offset,
   ) async {
     final t = await Isolate.run(() => ProjectTranscriber().transcribe(project, uses: uses));
-    if (offset != null) return endWithAudio(t.copyWith(audioOffset: offset), audio);
+    if (offset != null) return _withRender(project, t.copyWith(audioOffset: offset), audio);
     // Line the base's own drums (else everything it plays) up with the audio.
     final drums = project.drumHits();
     final beats = [for (final l in drums.values) ...l];
@@ -345,7 +347,41 @@ class SpartaEngine {
     final found = await Isolate.run(
       () => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds, bpm: t.bpm),
     );
-    return endWithAudio(t.copyWith(audioOffset: found), audio);
+    return _withRender(project, t.copyWith(audioOffset: found), audio);
+  }
+
+  /// A project lined up with its render: it ends with the render, and when
+  /// its parts don't name their sections, the sections come from listening
+  /// to the render (the chorus is the loud part the base keeps coming back
+  /// to), as for audio bases: a project's parts alone can't tell a chorus.
+  Future<BaseTranscription> _withRender(ChartSource project, BaseTranscription aligned, AudioBuffer audio) async {
+    var t = endWithAudio(aligned, audio);
+    if (project.markedSections(t.lengthBeats).isNotEmpty) return t;
+    final heard = t;
+    final sections = await Isolate.run(() => sectionsFromRender(heard, audio));
+    if (sections.isEmpty) return t;
+    t = t.copyWith(sections: sections, lengthBeats: math.min(t.lengthBeats, sections.last.endBeat));
+    return t;
+  }
+
+  /// Sections of [t]'s render, on [t]'s beat grid; empty when the render has
+  /// no recurring chorus to anchor them on.
+  static List<Section> sectionsFromRender(BaseTranscription t, AudioBuffer audio) {
+    const sr = AudioBaseAnalyzer.sampleRate;
+    final mono = audio.mono();
+    final x = mono.sampleRate == sr
+        ? mono.data
+        : resample(mono.data, mono.sampleRate / sr, sampleRate: mono.sampleRate);
+    return AudioSectioner()
+        .analyze(
+          x,
+          sr,
+          bpm: t.bpm,
+          firstDownbeat: t.audioOffset,
+          bars: (t.lengthBeats / t.beatsPerBar).floor(),
+          rootPc: t.rootPitchClass,
+        )
+        .sections;
   }
 
   /// A render can stop before its project does (a cut, an older version):
