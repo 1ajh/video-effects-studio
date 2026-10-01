@@ -3,7 +3,7 @@ description: >-
   Desktop video effects studio for logo-editing style effects — G-Majors,
   vocoders, glitches, pitch chords — with previews and effect compilations.
 publish_to: 'none'
-version: 2.0.0-dev.1+3
+version: 2.0.0-dev.2+4
 
 environment:
   sdk: '>=3.9.0 <4.0.0'

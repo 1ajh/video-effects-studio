@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/sparta/arranger.dart';
-import '../../core/sparta/base.dart';
 import '../../core/sparta/model.dart';
+import '../../core/sparta/transcription.dart';
 import '../../state/sparta_controller.dart';
 import '../../state/sparta_playback.dart';
 import '../actions.dart';
@@ -17,7 +17,8 @@ import 'sparta_sections.dart';
 import 'sparta_setup.dart';
 import 'sparta_style.dart';
 
-/// The Sparta Remix mode: setup on the left, generate/review on the right.
+/// The Sparta Remix mode: the steps on the left, the base and remix on the
+/// right.
 class SpartaWorkspace extends StatefulWidget {
   const SpartaWorkspace({super.key});
 
@@ -55,7 +56,7 @@ class _SpartaWorkspaceState extends State<SpartaWorkspace> {
     return const Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(width: 372, child: SpartaSetupPanel()),
+        SizedBox(width: 380, child: SpartaSetupPanel()),
         VerticalDivider(width: 1),
         Expanded(child: _ReviewArea()),
       ],
@@ -73,18 +74,31 @@ class _ReviewArea extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _Header(),
-        if (c.busy)
-          const LinearProgressIndicator(minHeight: 2, color: AppColors.sparta, backgroundColor: Colors.transparent),
+        if (c.busy || c.baseLoading)
+          LinearProgressIndicator(
+            value: c.progress,
+            minHeight: 2,
+            color: AppColors.sparta,
+            backgroundColor: Colors.transparent,
+          ),
         Expanded(
-          child: c.mix == null
+          child: c.prepared == null
               ? const _Onboarding()
               : ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                  children: const [
-                    _PreviewCard(),
-                    SizedBox(height: 18),
-                    SectionLabel('SAMPLES — AUDITION, SWAP OR NUDGE'),
-                    _SamplesGrid(),
+                  children: [
+                    const _BaseCard(),
+                    const SizedBox(height: 12),
+                    if (c.hasResult) ...[const _PreviewBar(), const SizedBox(height: 10)],
+                    const _TimelineCard(),
+                    const SizedBox(height: 16),
+                    const SectionEditor(),
+                    if (c.hasResult) ...[
+                      const SizedBox(height: 18),
+                      const SectionLabel('SAMPLES — AUDITION, SWAP OR NUDGE'),
+                      const SizedBox(height: 8),
+                      const _SamplesGrid(),
+                    ],
                   ],
                 ),
         ),
@@ -99,7 +113,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.watch<SpartaController>();
-    final message = c.error ?? (c.busy ? c.status : null);
+    final message = c.error ?? ((c.busy || c.baseLoading) && c.status.isNotEmpty ? c.status : null);
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       decoration: const BoxDecoration(
@@ -122,9 +136,9 @@ class _Header extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   message ??
-                      (c.mix == null
-                          ? 'Finds the samples, tunes them to D, writes the chart, mixes, masters and makes the video.'
-                          : 'Change anything on the left — the preview updates by itself.'),
+                      (c.hasResult
+                          ? 'Change anything — the preview updates by itself.'
+                          : 'Follows a real base exactly: its hits, drums and sections, with your line as the samples.'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: c.error != null ? AppColors.danger : AppColors.muted),
@@ -133,25 +147,34 @@ class _Header extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          if (c.busy)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.sparta),
+          if (c.hasResult)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.sparta,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                ),
+                onPressed: c.busy ? null : () => StudioActions(context).renderSparta(),
+                icon: const Icon(Icons.movie_creation_outlined, size: 18),
+                label: const Text('Render remix'),
+              ),
+            )
+          else
+            Tooltip(
+              message: c.missing ?? '',
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.sparta,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                ),
+                onPressed: c.canGenerate ? c.generate : null,
+                icon: const Icon(Icons.auto_fix_high, size: 18),
+                label: const Text('Generate remix'),
               ),
             ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.sparta,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            ),
-            onPressed: c.canGenerate ? c.generate : null,
-            icon: Icon(c.mix == null ? Icons.auto_fix_high : Icons.refresh, size: 18),
-            label: Text(c.mix == null ? 'Generate remix' : 'Re-pick samples'),
-          ),
         ],
       ),
     );
@@ -164,34 +187,46 @@ class _Onboarding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.watch<SpartaController>();
-    Widget step(int n, String title, String text, bool done) => Container(
-      width: 230,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+    Widget step(SpartaStep s, String text) {
+      final done = c.stepDone(s);
+      return InkWell(
+        onTap: () => c.goTo(s),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: done ? AppColors.success.withValues(alpha: 0.6) : AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: Container(
+          width: 230,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: done
+                  ? AppColors.success.withValues(alpha: 0.6)
+                  : (c.step == s ? AppColors.sparta : AppColors.border),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '$n',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.spartaHi),
+              Row(
+                children: [
+                  Text(
+                    '${s.index + 1}',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.spartaHi),
+                  ),
+                  const Spacer(),
+                  if (done) const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                ],
               ),
-              const Spacer(),
-              if (done) const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+              const SizedBox(height: 6),
+              Text(s.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(text, style: const TextStyle(fontSize: 12, color: AppColors.muted, height: 1.35)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(text, style: const TextStyle(fontSize: 12, color: AppColors.muted, height: 1.35)),
-        ],
-      ),
-    );
+        ),
+      );
+    }
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -203,10 +238,11 @@ class _Onboarding extends StatelessWidget {
             const Text('Make a real Sparta remix', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             const SizedBox(
-              width: 520,
+              width: 560,
               child: Text(
-                'Everything is automatic: pitch, chop, drum and quote samples are found in your sources, '
-                'pitch-corrected to D and sustained, placed on a base, mixed and mastered — then the video is cut to every hit.',
+                'Pick a real base and the remix follows it exactly: the pitch sample plays the base\'s own hits '
+                '(tuned to its key), the chorus plays your line\'s words in the Sparta Remix Wiki\'s patterns, the '
+                'percussion lands on its drums. Every sample is cut from your sources.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.muted, height: 1.45),
               ),
@@ -217,30 +253,10 @@ class _Onboarding extends StatelessWidget {
               runSpacing: 12,
               alignment: WrapAlignment.center,
               children: [
-                step(
-                  1,
-                  'Add sources',
-                  'Videos or audio of someone talking or singing. More sources, more variety.',
-                  c.readySources > 0,
-                ),
-                step(
-                  2,
-                  'Pick a base',
-                  'A built-in base, your FL Studio / FL Mobile / MIDI project, or any base audio.',
-                  c.baseReady,
-                ),
-                step(
-                  3,
-                  'Generate',
-                  'One click. Then audition and swap any sample, re-roll sections, tweak the mix.',
-                  c.mix != null,
-                ),
-                step(
-                  4,
-                  'Render',
-                  'Choose a visual style and export the video — plus stems and MIDI if you like.',
-                  false,
-                ),
+                step(SpartaStep.base, 'A real base from the library, your base audio, or your FL / MIDI project.'),
+                step(SpartaStep.source, 'Videos or audio of the person or character talking.'),
+                step(SpartaStep.line, 'The line they say: the quote, and the words the chorus plays.'),
+                step(SpartaStep.generate, 'Sound and video options (classic by default), then generate.'),
               ],
             ),
             if (!c.engineReady) ...[
@@ -255,19 +271,20 @@ class _Onboarding extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Preview
+// Base
 // -----------------------------------------------------------------------------
 
-class _PreviewCard extends StatelessWidget {
-  const _PreviewCard();
+class _BaseCard extends StatelessWidget {
+  const _BaseCard();
 
   @override
   Widget build(BuildContext context) {
     final c = context.watch<SpartaController>();
-    final play = context.watch<SpartaPlayback>();
-    final mix = c.mix!;
     final base = c.prepared!.base;
-    final pos = play.auditioning == null ? play.position : 0.0;
+    final t = c.transcription!;
+    final exact = t.confidence >= 0.95;
+    final id = c.selectedCatalogId;
+    final page = id == null ? null : c.catalog?.byId(id)?.page;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -280,83 +297,194 @@ class _PreviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _PlayButton(
-                playing: play.playing && play.auditioning == null,
-                enabled: play.available,
-                onPressed: () async {
-                  if (play.auditioning != null && c.previewPath != null) {
-                    await play.loadPreview(c.previewPath!, c.previewVersion, play: true);
-                  } else {
-                    await play.toggle();
-                  }
-                },
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      c.remixName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      play.available
-                          ? '${formatDuration(pos)} / ${formatDuration(mix.duration)}'
-                          : 'In-app playback is unavailable — open the preview in your player.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.muted,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
+                    Text(base.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    if (base.author.isNotEmpty)
+                      Text('Base by ${base.author}', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                   ],
                 ),
               ),
-              Wrap(
-                spacing: 6,
-                children: [
-                  Pill('${base.bpm.toStringAsFixed(base.bpm % 1 == 0 ? 0 : 1)} BPM', icon: Icons.speed),
-                  Pill('${mix.events.length} hits', icon: Icons.graphic_eq),
-                  Pill(
-                    '${mix.lufs.toStringAsFixed(1)} LUFS',
-                    icon: Icons.volume_up_outlined,
-                    tooltip: 'Integrated loudness · peak ${mix.peakDb.toStringAsFixed(1)} dBFS',
-                  ),
-                ],
-              ),
-              if (!play.available && c.previewPath != null)
-                ToolButton(icon: Icons.open_in_new, tooltip: 'Open preview', onPressed: () => openFile(c.previewPath!)),
+              if (page != null && page.isNotEmpty)
+                ToolButton(
+                  icon: Icons.open_in_new,
+                  tooltip: 'Where the base was published',
+                  onPressed: () => openUrl(page),
+                ),
             ],
-          ),
-          const SizedBox(height: 12),
-          _Timeline(
-            base: base,
-            mix: mix,
-            position: pos,
-            onSeek: play.available ? play.seek : null,
-            onMoveBoundary: c.busy ? null : c.moveSectionBoundary,
           ),
           const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Pill('${t.bpm.toStringAsFixed(t.bpm % 1 == 0 ? 0 : 1)} BPM', icon: Icons.speed),
+              InkWell(
+                onTap: () => pickRoot(context),
+                borderRadius: BorderRadius.circular(20),
+                child: Pill(
+                  'Root ${keyName(t.rootKey)}',
+                  icon: Icons.piano_outlined,
+                  color: AppColors.accentHi,
+                  tooltip: 'Change the root note (the pitch sample is tuned to it)',
+                ),
+              ),
+              Pill('${t.bars} bars · ${t.sections.length} sections', icon: Icons.view_week_outlined),
+              Pill(
+                exact ? t.source.label : '${t.source.label} · ${(t.confidence * 100).round()}% sure',
+                icon: exact ? Icons.verified_outlined : Icons.hearing,
+                color: exact ? AppColors.success : AppColors.warn,
+              ),
+              if (base.audioPath != null) _OffsetNudge(offset: t.audioOffset),
+            ],
+          ),
+          if (!exact) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'This was transcribed by listening, so check it: play the preview, then fix sections (below), the '
+              'root, the hits or the drums. Your fixes are kept for this base — send them in and everyone gets them.',
+              style: TextStyle(fontSize: 11.5, color: AppColors.faint, height: 1.4),
+            ),
+          ],
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: SectionChips(base: base)),
-              const SizedBox(width: 10),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: AppColors.sparta, foregroundColor: Colors.white),
-                onPressed: c.busy ? null : () => StudioActions(context).renderSparta(),
-                icon: const Icon(Icons.movie_creation_outlined, size: 17),
-                label: const Text('Render remix'),
+              if (c.transcriptionFixed || c.choices.isNotEmpty)
+                TextButton.icon(
+                  onPressed: c.resetFixes,
+                  icon: const Icon(Icons.restart_alt, size: 16),
+                  label: const Text('Undo all fixes'),
+                ),
+              const Spacer(),
+              OutlinedButton.icon(
+                onPressed: () => submitTranscription(context),
+                icon: const Icon(Icons.outbox_outlined, size: 16),
+                label: Text(c.transcriptionFixed ? 'Send your fixes' : 'Send this transcription'),
               ),
             ],
           ),
-          if (base.notes.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(base.notes, style: const TextStyle(fontSize: 11.5, color: AppColors.faint)),
-          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OffsetNudge extends StatelessWidget {
+  const _OffsetNudge({required this.offset});
+  final double offset;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.read<SpartaController>();
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.muted.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => c.setOffset(offset - 0.01),
+            child: const Padding(
+              padding: EdgeInsets.all(3),
+              child: Icon(Icons.chevron_left, size: 14, color: AppColors.muted),
+            ),
+          ),
+          Tooltip(
+            message: 'Where beat 1 is in the audio. Nudge it if the remix is early or late against the base.',
+            child: Text(
+              'Beat 1 at ${offset.toStringAsFixed(2)} s',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.muted),
+            ),
+          ),
+          InkWell(
+            onTap: () => c.setOffset(offset + 0.01),
+            child: const Padding(
+              padding: EdgeInsets.all(3),
+              child: Icon(Icons.chevron_right, size: 14, color: AppColors.muted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Preview
+// -----------------------------------------------------------------------------
+
+class _PreviewBar extends StatelessWidget {
+  const _PreviewBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<SpartaController>();
+    final play = context.watch<SpartaPlayback>();
+    final mix = c.mix!;
+    final pos = play.auditioning == null ? play.position : 0.0;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.sparta.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          _PlayButton(
+            playing: play.playing && play.auditioning == null,
+            enabled: play.available,
+            onPressed: () async {
+              if (play.auditioning != null && c.previewPath != null) {
+                await play.loadPreview(c.previewPath!, c.previewVersion, play: true);
+              } else {
+                await play.toggle();
+              }
+            },
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  c.remixName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  play.available
+                      ? '${formatDuration(pos)} / ${formatDuration(mix.duration)}'
+                      : 'In-app playback is unavailable — open the preview in your player.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.muted,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Wrap(
+            spacing: 6,
+            children: [
+              Pill('${mix.events.length} hits', icon: Icons.graphic_eq),
+              Pill(
+                '${mix.lufs.toStringAsFixed(1)} LUFS',
+                icon: Icons.volume_up_outlined,
+                tooltip: 'Integrated loudness · peak ${mix.peakDb.toStringAsFixed(1)} dBFS',
+              ),
+            ],
+          ),
+          if (!play.available && c.previewPath != null)
+            ToolButton(icon: Icons.open_in_new, tooltip: 'Open preview', onPressed: () => openFile(c.previewPath!)),
         ],
       ),
     );
@@ -387,13 +515,69 @@ class _PlayButton extends StatelessWidget {
   }
 }
 
-/// Lanes of the mix over the base's sections. Click or drag to seek; drag a
-/// section boundary (in the top strip) to move it, snapping to bars.
+// -----------------------------------------------------------------------------
+// Timeline: the base's notes and the remix chart over its sections
+// -----------------------------------------------------------------------------
+
+class _TimelineCard extends StatelessWidget {
+  const _TimelineCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<SpartaController>();
+    final play = context.watch<SpartaPlayback>();
+    final t = c.transcription!;
+    final mix = c.mix;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Expanded(child: SectionLabel('THE BASE AND YOUR REMIX')),
+              Text(
+                'Drag a section edge to move it · click to seek',
+                style: TextStyle(fontSize: 11, color: AppColors.faint),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _Timeline(
+            transcription: t,
+            chart: mix == null ? c.chart : null,
+            events: mix?.events,
+            durationBeats: math.max(t.lengthBeats, mix == null ? 0 : mix.duration * t.bpm / 60),
+            positionBeats: mix != null && play.auditioning == null ? play.position * t.bpm / 60 : null,
+            onSeek: mix != null && play.available ? (beat) => play.seek(beat * 60 / t.bpm) : null,
+            onMoveBoundary: c.busy ? null : c.moveSectionBoundary,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Timeline extends StatefulWidget {
-  const _Timeline({required this.base, required this.mix, required this.position, this.onSeek, this.onMoveBoundary});
-  final SpartaBase base;
-  final RemixMix mix;
-  final double position;
+  const _Timeline({
+    required this.transcription,
+    required this.durationBeats,
+    this.chart,
+    this.events,
+    this.positionBeats,
+    this.onSeek,
+    this.onMoveBoundary,
+  });
+  final BaseTranscription transcription;
+  final List<ChartNote>? chart;
+  final List<PlacedEvent>? events;
+  final double durationBeats;
+  final double? positionBeats;
   final ValueChanged<double>? onSeek;
   final void Function(int boundary, double beat)? onMoveBoundary;
 
@@ -407,23 +591,20 @@ class _TimelineState extends State<_Timeline> {
   double? _dragBeat;
   bool _hoverBoundary = false;
 
-  double _beatAt(double x, double width) => (x / width).clamp(0.0, 1.0) * widget.mix.duration * widget.base.bpm / 60;
+  double _beatAt(double x, double width) => (x / width).clamp(0.0, 1.0) * widget.durationBeats;
 
-  /// The boundary (index of the section it ends) under [o], if any.
   int? _boundaryAt(Offset o, double width) {
     if (widget.onMoveBoundary == null || o.dy > _strip) return null;
-    final dur = widget.mix.duration;
-    if (dur <= 0) return null;
-    final s = widget.base.sections;
+    final s = widget.transcription.sections;
     for (var i = 0; i + 1 < s.length; i++) {
-      final x = widget.base.seconds(s[i].endBeat) / dur * width;
+      final x = s[i].endBeat / widget.durationBeats * width;
       if ((o.dx - x).abs() <= _grab) return i;
     }
     return null;
   }
 
   double _snap(double beat) {
-    final bpb = widget.base.beatsPerBar;
+    final bpb = widget.transcription.beatsPerBar;
     return (beat / bpb).round() * bpb.toDouble();
   }
 
@@ -432,7 +613,7 @@ class _TimelineState extends State<_Timeline> {
     return LayoutBuilder(
       builder: (context, box) {
         final w = box.maxWidth;
-        void seek(Offset o) => widget.onSeek?.call((o.dx / w).clamp(0.0, 1.0) * widget.mix.duration);
+        void seek(Offset o) => widget.onSeek?.call(_beatAt(o.dx, w));
         final cursor = _dragging != null || _hoverBoundary
             ? SystemMouseCursors.resizeColumn
             : (widget.onSeek == null ? MouseCursor.defer : SystemMouseCursors.click);
@@ -444,8 +625,6 @@ class _TimelineState extends State<_Timeline> {
           },
           onExit: (_) => _hoverBoundary ? setState(() => _hoverBoundary = false) : null,
           child: GestureDetector(
-            // Grab where the pointer went down, not where the drag was
-            // recognised (a few pixels later), so boundaries are easy to catch.
             dragStartBehavior: DragStartBehavior.down,
             onTapDown: (d) => seek(d.localPosition),
             onHorizontalDragStart: (d) {
@@ -472,11 +651,13 @@ class _TimelineState extends State<_Timeline> {
               if (b != null && beat != null) widget.onMoveBoundary?.call(b, beat);
             },
             child: CustomPaint(
-              size: Size(w, 24 + SampleRole.values.length * 13 + 4),
+              size: Size(w, _TimelinePainter.height),
               painter: _TimelinePainter(
-                base: widget.base,
-                mix: widget.mix,
-                position: widget.position,
+                t: widget.transcription,
+                chart: widget.chart,
+                events: widget.events,
+                durationBeats: widget.durationBeats,
+                position: widget.positionBeats,
                 dragBeat: _dragBeat,
               ),
             ),
@@ -488,80 +669,144 @@ class _TimelineState extends State<_Timeline> {
 }
 
 class _TimelinePainter extends CustomPainter {
-  _TimelinePainter({required this.base, required this.mix, required this.position, this.dragBeat});
-  final SpartaBase base;
-  final RemixMix mix;
-  final double position;
-
-  /// Where a dragged section boundary would land.
+  _TimelinePainter({
+    required this.t,
+    required this.durationBeats,
+    this.chart,
+    this.events,
+    this.position,
+    this.dragBeat,
+  });
+  final BaseTranscription t;
+  final List<ChartNote>? chart;
+  final List<PlacedEvent>? events;
+  final double durationBeats;
+  final double? position;
   final double? dragBeat;
 
-  static const _lanes = [
+  static const _hitsH = 44.0, _lane = 11.0;
+  static const _baseLanes = [SampleRole.kick, SampleRole.snare, SampleRole.hat];
+  static const _remixLanes = [
     SampleRole.quote,
+    SampleRole.word,
     SampleRole.pitch,
-    SampleRole.chop,
     SampleRole.kick,
     SampleRole.snare,
     SampleRole.hat,
   ];
+  static const height = 24 + 14 + _hitsH + 3 * _lane + 18 + 6 * _lane + 4;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final dur = math.max(0.1, mix.duration);
-    double x(double t) => t / dur * size.width;
-    final bg = Paint()..color = AppColors.bg;
-    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)), bg);
+    final dur = math.max(1.0, durationBeats);
+    double x(double beat) => beat / dur * size.width;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+      Paint()..color = AppColors.bg,
+    );
 
     // Sections.
-    for (final s in base.sections) {
-      final a = x(base.seconds(s.startBeat)), b = x(base.seconds(s.endBeat));
+    for (final s in t.sections) {
+      final a = x(s.startBeat), b = x(s.endBeat);
       final color = sectionColor(s.kind);
       canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromLTRB(a + 1, 2, b - 1, 20), const Radius.circular(4)),
         Paint()..color = color.withValues(alpha: 0.35),
       );
-      canvas.drawRect(Rect.fromLTRB(a, 22, a + 1, size.height), Paint()..color = color.withValues(alpha: 0.35));
-      if (b - a > 40) {
-        final tp = TextPainter(
-          text: TextSpan(
-            text: s.title,
-            style: const TextStyle(fontSize: 10.5, color: AppColors.text, fontWeight: FontWeight.w600),
-          ),
-          textDirection: TextDirection.ltr,
-          maxLines: 1,
-          ellipsis: '…',
-        )..layout(maxWidth: b - a - 8);
-        tp.paint(canvas, Offset(a + 5, 11 - tp.height / 2));
-      }
+      canvas.drawRect(Rect.fromLTRB(a, 22, a + 1, size.height), Paint()..color = color.withValues(alpha: 0.3));
+      if (b - a > 40) _text(canvas, s.title, Offset(a + 5, 5), b - a - 8, bold: true);
     }
 
-    // Lanes.
-    for (var i = 0; i < _lanes.length; i++) {
-      final y = 24.0 + i * 13;
-      final paint = Paint()..color = laneColor(_lanes[i]).withValues(alpha: 0.9);
-      canvas.drawRect(Rect.fromLTWH(0, y + 5, size.width, 1), Paint()..color = AppColors.border.withValues(alpha: 0.5));
-      for (final e in mix.events) {
-        if (e.role != _lanes[i]) continue;
-        final a = x(e.start), w = math.max(1.5, x(e.end) - a);
-        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(a, y + 1, w, 9), const Radius.circular(2)), paint);
+    // The base: its hits as a mini piano roll, and its drums.
+    var y = 24.0;
+    _text(canvas, 'BASE', Offset(4, y), 80, color: AppColors.faint);
+    y += 14;
+    if (t.hits.isNotEmpty) {
+      final lo = t.hits.map((h) => h.semitone).reduce(math.min), hi = t.hits.map((h) => h.semitone).reduce(math.max);
+      final span = math.max(1, hi - lo);
+      final paint = Paint()..color = laneColor(SampleRole.pitch).withValues(alpha: 0.85);
+      for (final h in t.hits) {
+        final yy = y + (_hitsH - 4) * (1 - (h.semitone - lo) / span);
+        canvas.drawRect(Rect.fromLTWH(x(h.beat), yy, math.max(1.2, x(h.end) - x(h.beat)), 3), paint);
       }
     }
+    y += _hitsH;
+    for (final role in _baseLanes) {
+      final paint = Paint()..color = laneColor(role).withValues(alpha: 0.75);
+      for (final b in t.drums(role)) {
+        canvas.drawRect(Rect.fromLTWH(x(b), y + 2, 1.5, _lane - 4), paint);
+      }
+      y += _lane;
+    }
 
-    // Boundary being dragged.
+    // The remix chart (or, once mixed, what plays).
+    y += 4;
+    _text(canvas, events == null ? 'REMIX CHART' : 'REMIX', Offset(4, y), 120, color: AppColors.faint);
+    y += 14;
+    for (final role in _remixLanes) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, y + _lane / 2, size.width, 1),
+        Paint()..color = AppColors.border.withValues(alpha: 0.4),
+      );
+      final paint = Paint()..color = laneColor(role).withValues(alpha: 0.9);
+      final ev = events;
+      if (ev != null) {
+        for (final e in ev) {
+          if (e.role != role) continue;
+          final a = x(e.beat), w = math.max(1.5, x(e.beat + e.duration * t.bpm / 60) - a);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromLTWH(a, y + 1, w, _lane - 2), const Radius.circular(2)),
+            paint,
+          );
+        }
+      } else {
+        for (final n in chart ?? const <ChartNote>[]) {
+          if (n.role != role) continue;
+          final a = x(n.beat), w = math.max(1.5, x(n.end) - a);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromLTWH(a, y + 1, w, _lane - 2), const Radius.circular(2)),
+            paint,
+          );
+        }
+      }
+      y += _lane;
+    }
+
     final drag = dragBeat;
     if (drag != null) {
-      final dx = x(base.seconds(drag));
-      canvas.drawRect(Rect.fromLTWH(dx - 1.5, 0, 3, size.height), Paint()..color = AppColors.sparta);
+      canvas.drawRect(Rect.fromLTWH(x(drag) - 1.5, 0, 3, size.height), Paint()..color = AppColors.sparta);
     }
+    final pos = position;
+    if (pos != null) {
+      canvas.drawRect(
+        Rect.fromLTWH(x(pos.clamp(0, dur).toDouble()) - 1, 0, 2, size.height),
+        Paint()..color = Colors.white,
+      );
+    }
+  }
 
-    // Playhead.
-    final px = x(position.clamp(0, dur).toDouble());
-    canvas.drawRect(Rect.fromLTWH(px - 1, 0, 2, size.height), Paint()..color = Colors.white);
+  void _text(Canvas canvas, String s, Offset at, double maxWidth, {bool bold = false, Color color = AppColors.text}) {
+    if (maxWidth <= 4) return;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: s,
+        style: TextStyle(fontSize: 10.5, color: color, fontWeight: bold ? FontWeight.w600 : FontWeight.w700),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '…',
+    )..layout(maxWidth: maxWidth);
+    tp.paint(canvas, at);
   }
 
   @override
   bool shouldRepaint(_TimelinePainter old) =>
-      old.position != position || old.mix != mix || old.base != base || old.dragBeat != dragBeat;
+      old.position != position ||
+      old.t != t ||
+      old.chart != chart ||
+      old.events != events ||
+      old.dragBeat != dragBeat ||
+      old.durationBeats != durationBeats;
 }
 
 // -----------------------------------------------------------------------------
@@ -578,9 +823,80 @@ class _SamplesGrid extends StatelessWidget {
       spacing: 12,
       runSpacing: 12,
       children: [
-        for (final role in SampleRole.values)
+        const _WordsCard(),
+        for (final role in const [SampleRole.pitch, SampleRole.kick, SampleRole.snare, SampleRole.hat])
           if (c.picks[role] != null) _SampleCard(pick: c.picks[role]!),
       ],
+    );
+  }
+}
+
+/// The line's words as they play (with Chorus Crisp etc.).
+class _WordsCard extends StatelessWidget {
+  const _WordsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<SpartaController>();
+    final play = context.watch<SpartaPlayback>();
+    final words = c.processed[SampleRole.word] ?? const [];
+    final color = laneColor(SampleRole.word);
+    return Container(
+      width: 300,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(laneIcon(SampleRole.word), size: 16, color: color),
+              const SizedBox(width: 6),
+              const Text('Chorus words & quote', style: TextStyle(fontWeight: FontWeight.w800)),
+              const Spacer(),
+              TextButton(onPressed: () => c.goTo(SpartaStep.line), child: const Text('Edit line')),
+            ],
+          ),
+          Text(SampleRole.word.blurb, style: const TextStyle(fontSize: 11.5, color: AppColors.faint)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < words.length; i++)
+                ActionChip(
+                  avatar: Icon(
+                    play.auditioning == 'w${words[i].slot}' && play.playing ? Icons.stop : Icons.play_arrow,
+                    size: 15,
+                    color: color,
+                  ),
+                  label: Text(words[i].slot, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  onPressed: !play.available
+                      ? null
+                      : () async {
+                          final path = await c.auditionPath(SampleRole.word, which: i);
+                          if (path != null) await play.audition(path, 'w${words[i].slot}');
+                        },
+                ),
+              if (c.processed[SampleRole.quote] != null)
+                ActionChip(
+                  avatar: Icon(Icons.format_quote, size: 15, color: laneColor(SampleRole.quote)),
+                  label: const Text('Quote', style: TextStyle(fontSize: 12)),
+                  onPressed: !play.available
+                      ? null
+                      : () async {
+                          final path = await c.auditionPath(SampleRole.quote);
+                          if (path != null) await play.audition(path, 'quote');
+                        },
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -624,11 +940,7 @@ class _SampleCard extends StatelessWidget {
               Text(role.label, style: const TextStyle(fontWeight: FontWeight.w800)),
               const SizedBox(width: 6),
               if (tuned != null)
-                Pill(
-                  '→ ${_noteOfHz(tuned)}',
-                  color: color,
-                  tooltip: 'Pitch-corrected to ${tuned.toStringAsFixed(1)} Hz',
-                ),
+                Pill('→ ${_noteOfHz(tuned)}', color: color, tooltip: 'Tuned to ${tuned.toStringAsFixed(1)} Hz'),
               const Spacer(),
               Pill('${(cand.score * 100).round()}%', tooltip: 'How well it fits this lane'),
             ],
@@ -653,13 +965,20 @@ class _SampleCard extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              _MiniButton(
-                icon: play.auditioning == '${role.name}0' && play.playing ? Icons.stop : Icons.play_arrow,
-                label: 'Play',
-                color: color,
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  side: BorderSide(color: color.withValues(alpha: 0.6)),
+                  foregroundColor: color,
+                ),
                 onPressed: !play.available || processed == null
                     ? null
                     : () => play.auditioning == '${role.name}0' && play.playing ? play.stop() : audition(0),
+                icon: Icon(
+                  play.auditioning == '${role.name}0' && play.playing ? Icons.stop : Icons.play_arrow,
+                  size: 16,
+                ),
+                label: const Text('Play', style: TextStyle(fontSize: 12)),
               ),
               const Spacer(),
               ToolButton(icon: Icons.chevron_left, tooltip: 'Previous candidate', onPressed: () => c.swap(role, -1)),
@@ -706,7 +1025,7 @@ class _SampleCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Tooltip(
-                    message: 'Alternate this lane between two samples (per section / per hit)',
+                    message: 'Alternate this lane between two samples, section by section',
                     child: Text(
                       pick.alternate == null
                           ? 'Second sample: off'
@@ -738,29 +1057,6 @@ class _SampleCard extends StatelessWidget {
 
   static String _noteOfHz(double hz) {
     final midi = (69 + 12 * math.log(hz / 440) / math.ln2).round();
-    const names = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
-    return '${names[midi % 12]}${midi ~/ 12 - 1}';
-  }
-}
-
-class _MiniButton extends StatelessWidget {
-  const _MiniButton({required this.icon, required this.label, required this.color, required this.onPressed});
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        side: BorderSide(color: color.withValues(alpha: 0.6)),
-        foregroundColor: color,
-      ),
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-    );
+    return keyName(midi);
   }
 }

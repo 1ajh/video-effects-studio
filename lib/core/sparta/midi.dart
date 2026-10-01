@@ -294,15 +294,18 @@ class MidiFile {
     file.tracks.add(
       MidiTrack('Hits (${tr.rootName} root)', [
         for (final h in tr.hits)
-          MidiNote(t(h.beat), math.max(1, t(h.length)), (tr.rootKey + h.semitone).clamp(0, 127), (h.velocity * 127).round()),
+          MidiNote(
+            t(h.beat),
+            math.max(1, t(h.length)),
+            (tr.rootKey + h.semitone).clamp(0, 127),
+            (h.velocity * 127).round(),
+          ),
       ]),
     );
     for (final (role, key) in const [(SampleRole.kick, 36), (SampleRole.snare, 38), (SampleRole.hat, 42)]) {
       final beats = tr.drums(role);
       if (beats.isEmpty) continue;
-      file.tracks.add(
-        MidiTrack(role.label, [for (final b in beats) MidiNote(t(b), t(0.25), key, 110, channel: 9)]),
-      );
+      file.tracks.add(MidiTrack(role.label, [for (final b in beats) MidiNote(t(b), t(0.25), key, 110, channel: 9)]));
     }
     return file;
   }

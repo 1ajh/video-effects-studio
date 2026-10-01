@@ -101,19 +101,14 @@ class VisualOptions {
   final IdleBox idle;
   final IntroVisual intro;
 
-  VisualOptions copyWith({
-    VisualStyle? style,
-    GridSize? grid,
-    FlipMode? flip,
-    IdleBox? idle,
-    IntroVisual? intro,
-  }) => VisualOptions(
-    style: style ?? this.style,
-    grid: grid ?? this.grid,
-    flip: flip ?? this.flip,
-    idle: idle ?? this.idle,
-    intro: intro ?? this.intro,
-  );
+  VisualOptions copyWith({VisualStyle? style, GridSize? grid, FlipMode? flip, IdleBox? idle, IntroVisual? intro}) =>
+      VisualOptions(
+        style: style ?? this.style,
+        grid: grid ?? this.grid,
+        flip: flip ?? this.flip,
+        idle: idle ?? this.idle,
+        intro: intro ?? this.intro,
+      );
 
   Map<String, Object?> toJson() => {
     'style': style.name,
@@ -463,7 +458,9 @@ class VisualRenderer {
     var hue = 0;
     var negate = false;
     if (o.style == VisualStyle.chaos) {
-      hue = e.role == SampleRole.pitch ? ((e.semitone % 12) + 12) % 12 * 30 : const [0, 60, 120, 180, 240, 300][hitIndex % 6];
+      hue = e.role == SampleRole.pitch
+          ? ((e.semitone % 12) + 12) % 12 * 30
+          : const [0, 60, 120, 180, 240, 300][hitIndex % 6];
       negate = e.role == SampleRole.snare && hitIndex.isOdd;
     }
     // Pitched hits are transposed pictures too; words, drums and the quote
@@ -604,9 +601,7 @@ class VisualRenderer {
       final (_, start, dur) = overlays[i];
       final input = tracks.length + 1 + i;
       final a = start.toStringAsFixed(4), z = (start + dur).toStringAsFixed(4);
-      chains.add(
-        '[$input:v]fps=$fps,setpts=PTS-STARTPTS+$a/TB,scale=$width:$height,setsar=1,format=yuv420p[q$i]',
-      );
+      chains.add('[$input:v]fps=$fps,setpts=PTS-STARTPTS+$a/TB,scale=$width:$height,setsar=1,format=yuv420p[q$i]');
       chains.add("[$last][q$i]overlay=0:0:eof_action=pass:enable='between(t,$a,$z)'[o$i]");
       last = 'o$i';
     }

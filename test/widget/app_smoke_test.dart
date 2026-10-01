@@ -58,49 +58,45 @@ void main() {
     expect(find.text('Compilation (${EffectRegistry.builtIn.length})'), findsOneWidget);
   });
 
-  testWidgets('Sparta mode shows setup and onboarding', (tester) async {
+  testWidgets('Sparta mode walks through base, source, line and generate', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.byTooltip('Sparta Remix generator (Ctrl+3)'));
     await tester.pumpAndSettle();
     expect(find.text('Sparta Remix Generator'), findsOneWidget);
     expect(find.text('Make a real Sparta remix'), findsOneWidget);
-    expect(find.text('Drop videos or audio here'), findsOneWidget);
-    expect(find.text('Sparta Classic'), findsOneWidget);
+    // Step 1: the base library (real bases, with credits).
+    expect(find.text('Library'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Sparta Extended Remix'), findsWidgets);
+    expect(find.text('Official'), findsWidgets);
     // Nothing to generate from yet.
     final generate = tester.widget<FilledButton>(
       find.ancestor(of: find.text('Generate remix'), matching: find.byWidgetPredicate((w) => w is FilledButton)),
     );
     expect(generate.onPressed, isNull);
-    expect(find.text('Render remix'), findsOneWidget);
-  });
 
-  testWidgets('Sparta base modes and section toggles', (tester) async {
-    await pumpApp(tester);
-    await tester.tap(find.byTooltip('Sparta Remix generator (Ctrl+3)'));
+    await tester.tap(find.text('Your audio'));
     await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Sparta Venom'));
-    await tester.pump();
-    expect(find.text('Madness'), findsWidgets);
-    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Madness'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'Madness'));
-    await tester.pump();
-    final chip = tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'Madness'));
-    expect(chip.selected, isFalse);
-
-    await tester.ensureVisible(find.text('Project'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Project'));
+    expect(find.text('Choose a base audio file'), findsOneWidget);
+    await tester.tap(find.text('Your project'));
     await tester.pumpAndSettle();
     expect(find.text('Choose .flp / .flm / .mid'), findsOneWidget);
 
-    await tester.tap(find.text('Audio'));
+    await tester.tap(find.text('Next: Source'));
     await tester.pumpAndSettle();
-    expect(find.text('Choose a base audio file'), findsOneWidget);
-    expect(find.text('Tempo'), findsOneWidget);
-    expect(find.text('½×'), findsOneWidget);
-    expect(find.text('2×'), findsOneWidget);
+    expect(find.text('Drop videos or audio here'), findsOneWidget);
+    await tester.tap(find.text('Next: Line'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a source first.'), findsOneWidget);
+    await tester.tap(find.text('Next: Generate'));
+    await tester.pumpAndSettle();
+    // Classic defaults.
+    expect(find.text('Classic (default)'), findsOneWidget);
+    expect(find.text('Hard-tuned'), findsOneWidget);
+    expect(find.text('Horizontal, every box'), findsOneWidget);
+    expect(find.text('Black'), findsOneWidget);
+    expect(find.text('Full-screen quote'), findsOneWidget);
+    expect(find.text('Off: the remix follows the base exactly.'), findsOneWidget);
   });
 
   for (final width in [1100.0, 1280.0, 1600.0]) {
@@ -113,7 +109,7 @@ void main() {
       await tester.tap(find.byTooltip('Sparta Remix generator (Ctrl+3)'));
       await tester.pumpAndSettle();
       expect(find.text('Sparta Remix Generator'), findsOneWidget);
-      for (final mode in ['Project', 'Audio']) {
+      for (final mode in ['Your project', 'Your audio', 'Next: Source', 'Next: Line', 'Next: Generate']) {
         await tester.ensureVisible(find.text(mode));
         await tester.pumpAndSettle();
         await tester.tap(find.text(mode));

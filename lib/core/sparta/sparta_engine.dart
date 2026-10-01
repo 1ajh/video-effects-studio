@@ -94,11 +94,21 @@ class PreparedBase {
 
   BaseTranscription get transcription => base.transcription;
 
-  PreparedBase withTranscription(BaseTranscription t) =>
-      PreparedBase(base: base.copyWith(transcription: t), audio: audio, auto: auto, project: project, analysis: analysis);
+  PreparedBase withTranscription(BaseTranscription t) => PreparedBase(
+    base: base.copyWith(transcription: t),
+    audio: audio,
+    auto: auto,
+    project: project,
+    analysis: analysis,
+  );
 
-  PreparedBase withChart(List<ChartNote> chart) =>
-      PreparedBase(base: base.copyWith(chart: chart), audio: audio, auto: auto, project: project, analysis: analysis);
+  PreparedBase withChart(List<ChartNote> chart) => PreparedBase(
+    base: base.copyWith(chart: chart),
+    audio: audio,
+    auto: auto,
+    project: project,
+    analysis: analysis,
+  );
 }
 
 /// Files written for a finished remix.
@@ -305,7 +315,9 @@ class SpartaEngine {
       for (final b in beats.isNotEmpty ? beats : [for (final tr in project.tracks) ...tr.notes.map((n) => n.beat)])
         b * 60 / t.bpm,
     ]..sort();
-    final first = project.tracks.expand((tr) => tr.notes).fold<double?>(null, (m, n) => m == null || n.beat < m ? n.beat : m);
+    final first = project.tracks
+        .expand((tr) => tr.notes)
+        .fold<double?>(null, (m, n) => m == null || n.beat < m ? n.beat : m);
     final firstSeconds = first == null ? null : first * 60 / t.bpm;
     final found = await Isolate.run(() => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds));
     return t.copyWith(audioOffset: found);

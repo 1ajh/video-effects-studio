@@ -28,20 +28,23 @@ A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, C
 
 ## Sparta Remix Generator
 
-The third mode (`Ctrl+3`) builds a complete Sparta remix from your sources, with no manual chopping:
+The third mode (`Ctrl+3`) makes a Sparta remix the way the community does: a real base, followed exactly, with samples cut from your video. It goes in four steps: **Base → Source → Line → Generate**.
 
-- **Sample finding**: every source is analysed (pitch tracking, onsets, spectral shape, voicing) and ranked candidates are picked for each lane: a sustained vowel for **pitch**, a punchy syllable for the **chop**, low thumps / cracks / hisses for **kick, snare and hat**, and a clean spoken line for the **quote**. With several sources the lanes use different material and pitch/chop alternate between two voices.
-- **Correction and enhancement**: pitch and chop samples are pitch-corrected to D with TD-PSOLA (octave-error repair, formant-preserving), and pitch samples are sustained so any note length works. Chops get a *Chorus Crisp* doubled attack, drum samples can be reinforced with a synthesized body, and everything is trimmed, de-clicked and normalized.
-- **Bases**:
-  - **Built-in**: three procedurally composed bases (Classic 140, Hyper 160, Venom 150 BPM) in the Sparta idiom: D Phrygian, the D–E♭–C–E♭ movement, and intro/quote, chorus, dundundenden, epicness, madness, awesomeness and outro sections. Toggle sections, pick a length, re-roll any section or the whole base.
-  - **Your projects**: FL Studio `.flp`, FL Studio Mobile `.flm` and MIDI. Name the placeholder tracks (*Pitch*, *Chop*, *Quote*…) or map them in the app; with no sample lanes, a chart is composed over the project's own chords and drums, in the project's own scale. Sections come from patterns named after them (*perc intro*, *madness bassline*…), or else from where the project's parts change. Add the base's rendered audio (auto-aligned to the chart) or let the app re-synthesize the project.
-  - **Any base audio**: tempo, the bar grid, the key and the chord of every bar are detected, and the chart is composed over them.
-  - The readers and detectors are checked against real community bases from the Sparta FLP archive: 307 FL Studio projects from FL 10 to FL 21, FL Studio Mobile projects from old and new app versions, and base renders whose tempo and bar 1 are known from their projects.
-- **Arrangement and mix**: sampler-style transposition on every chart note, monophonic choke, a bus per lane (EQ, compression, reverb, width), the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** (soft-clipped, loud) master.
-- **Review before rendering**: play the mix, audition every sample, step through candidates, nudge sample edges, toggle a second sample per lane, adjust lane levels, re-roll sections. The preview updates on its own.
-- **Your own sections**: relabel (with the choice to rewrite that section in the new style or keep it; on built-in bases the rewrite includes the music), rename, split, merge or re-roll any section, drag section edges on the timeline, or copy the sections of another base you've edited. For audio bases, fix a half- or double-time reading with ½× / 2× or type the exact BPM. Section edits and tempo fixes are remembered per base file and survive re-picking samples.
-- **Visuals** in four presets (Classic grid, Modern, Chaos/YTPMV, Minimal): every hit cuts to its source footage at the transposed speed, with flips, hue shifts and punch-zooms per section. Audio-only sources become animated waveform cards.
-- **Exports**: the video (or MP3/WAV), plus optional **stems** (base, pitch, chop, drums, quote) and **MIDI** (the sample chart, and the base parts when composed).
+- **Base**
+  - **Library**: 579 real bases you can search and download, each credited to its maker and linked to where it was published: Keaton's official Sparta Extended instrumental, the HADES BLACK, Francex and *Some Sparta Bases Archive* collections, single uploads, and the Sparta Archive FLP Remixes, whose bases come with their FL Studio projects (marked **Exact**).
+  - **Your audio**: any base as MP3/WAV. Tempo, bar 1, the kicks, snares and hats, the hit notes (matched against every pitch pattern on the Sparta Remix Wiki, in every key) and the sections are worked out by listening. If the file is a library base, its checked transcription is used instead.
+  - **Your project**: FL Studio `.flp`, FL Studio Mobile `.flm` or MIDI, with the base's audio (lined up automatically) or re-synthesized. The base's notes are read exactly; pick the hit/lead track if the automatic choice is wrong.
+- **What the remix plays** (all from the base, nothing made up):
+  - the **pitch sample** plays the base's own hit notes, hard-tuned to the base's root (or *Natural*, keeping the voice's wobble);
+  - the **chorus words** play the wiki's word patterns: the standard chorus, DunDunDenDen's 1-2-3A-3B, the epicness and madness patterns, only in the sections that have them. The chorus is words only;
+  - the **percussion** lands on the base's own kicks, snares and hats;
+  - the **quote** (your whole line) opens the intro.
+- **Source and line**: everything is cut from your sources. The app finds the spoken lines; you pick one and its words become the chorus samples, numbered in order (syllables of a word are 3A, 3B…). Play each word, drag the cuts between words, split, join or trim them. Nothing is layered from anywhere else unless you switch on the synth drum body (off by default: that would be a fake sample). Chorus Crisp is on by default.
+- **Fix the base**: transcriptions from audio are drafts, so everything is editable: relabel, rename, split, merge or drag sections (the classics plus pre- and post-epicness), change the root, move or replace a section's hits with a wiki pattern, fix its kick/snare/hat, nudge beat 1. Fixes are kept per base. **Send your fixes** saves the transcription and opens a filled-in GitHub issue; approved ones are added to the catalog with your credit, for everyone.
+- **Per section**: choose any of the wiki's word and pitch patterns (classics, freestyles, KingSpartaX37's madness and the rest), or type your own in wiki notation.
+- **Random mode** (off by default) can use chorus freestyles, other pitch patterns, other samples per section and a different section layout. *Another take* re-rolls it.
+- **Video**: the classic box grid by default: one box per sample (pitch, each word, kick, snare, hat), sized automatically (2×2, 3×3 or 4×4), flipping horizontally on every hit, black between hits, and the quote full screen. Every one of those is an option (grid size; which boxes flip and how; black, dimmed or held last frame; quote full screen, in its own box or as a title card), plus Modern, Chaos/YTPMV and Minimal styles.
+- **Mix and export**: sampler transposition, choke per lane, a bus per lane, the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** master. Export the video (or MP3/WAV), plus optional **stems** (base, pitch, words, drums, quote) and **MIDI** (the sample chart and the base's notes).
 
 > Loud effects are loud on purpose: authentic volume, no limiter. They carry a 🔊 badge.
 
@@ -64,7 +67,7 @@ Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobil
 3. Tweak **parameters** in the inspector on the right, and set the **output** format and folder below them.
 4. **Render** (`Ctrl+Enter`). Jobs appear in the queue (`Ctrl+Q`).
 
-**Sparta Remix mode** (`Ctrl+3`): add sources, pick a base, press **Generate remix**, review, then **Render remix**.
+**Sparta Remix mode** (`Ctrl+3`): pick a base, add your sources, confirm the line, press **Generate remix**, review, then **Render remix**.
 
 **Compilation mode** (`Ctrl+2`): add effects with the ➕ button, double-click, or `Ctrl+D`, or use *All effects / Add category / Random* in the dock at the bottom. Click a card to edit that item, drag to reorder, and choose *Original first* and a label style. Then render.
 
@@ -106,7 +109,7 @@ flutter test --tags ffmpeg           # renders every effect and full Sparta remi
 VFX_FFMPEG=/path/to/ffmpeg flutter test --tags ffmpeg   # against a specific build
 ```
 
-The FFmpeg suite renders every effect on a clip with audio and on an odd-sized clip without audio, and runs the whole Sparta pipeline (sources → samples → built-in, MIDI and audio-only bases → mix → video in every visual preset). It also covers every output format, all compilation label modes, skipped-segment handling, previews and thumbnails. CI runs it against Ubuntu's FFmpeg 6.1, and it also passes on current FFmpeg master.
+The FFmpeg suite renders every effect on a clip with audio and on an odd-sized clip without audio, and runs the whole Sparta pipeline (sources → line, words and samples → project, audio-only and library bases → mix → video in every visual style). It also covers every output format, all compilation label modes, skipped-segment handling, previews and thumbnails. CI runs it against Ubuntu's FFmpeg 6.1, and it also passes on current FFmpeg master.
 
 ## How effects work
 
@@ -129,14 +132,15 @@ The command builder takes care of the boring parts: argument lists (no shell quo
 lib/
   core/        effects, FFmpeg command building, rendering (pure Dart, fully tested)
     audio/     DSP: FFT, YIN, onsets, TD-PSOLA, filters, dynamics, synthesis
-    sparta/    sample finder, enhancer, composer, FLP/FLM/MIDI readers, beat & chord
-               analysis, arranger/mixer, visual renderer, pipeline engine
+    sparta/    base catalog, wiki pattern library, FLP/FLM/MIDI readers, project and audio
+               transcription, line & sample finder, enhancer, charter, mixer, visual renderer
   state/       controllers (project, editor, compilation, preview, queue, library, settings, sparta)
   ui/          the editor: browser, preview, inspector, compilation dock, Sparta workspace, queue, pages
 ```
 
 ## Credits
 
+- Sparta patterns and section names come from the [Sparta Remix Wiki](https://spartaremix.fandom.com/wiki/Category:Sparta_Remix_Components) (CC BY-SA); bases are credited to their makers in the app
 - Sparta techniques draw on the community's tools: PSOLA pitch correction as in Pet297's *PitchCorrector297*, Chorus Crisp and SlamShaper-style shaping from composition-cassidy's tools, and grid visuals like *Sparta Remix Visual Editor*
 - Effect recipes are inspired by the [Logo Editing Wiki](https://logo-editing.fandom.com/wiki/Category:Effects) community and the original NotSoBot tags by **AJH**
 - [FFmpeg](https://ffmpeg.org), [Flutter](https://flutter.dev), [media_kit](https://github.com/media-kit/media-kit), [Inter](https://rsms.me/inter/) (SIL OFL)

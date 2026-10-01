@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,10 +27,7 @@ class QueueDrawer extends StatelessWidget {
               subtitle: queue.activeCount > 0 ? '${queue.activeCount} active' : null,
               trailing: [
                 if (jobs.any((j) => j.isFinished))
-                  TextButton(
-                    onPressed: queue.clearFinished,
-                    child: const Text('Clear finished', style: TextStyle(fontSize: 12)),
-                  ),
+                  ConfirmTextButton(label: 'Clear finished', onConfirmed: queue.clearFinished),
                 ToolButton(icon: Icons.close, tooltip: 'Close', onPressed: () => Navigator.of(context).pop()),
               ],
             ),
@@ -48,6 +47,50 @@ class QueueDrawer extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A text button that needs a second click (within a few seconds) to act,
+/// so finished jobs aren't cleared by a stray click.
+class ConfirmTextButton extends StatefulWidget {
+  const ConfirmTextButton({super.key, required this.label, required this.onConfirmed});
+  final String label;
+  final VoidCallback onConfirmed;
+
+  @override
+  State<ConfirmTextButton> createState() => _ConfirmTextButtonState();
+}
+
+class _ConfirmTextButtonState extends State<ConfirmTextButton> {
+  Timer? _armed;
+
+  @override
+  void dispose() {
+    _armed?.cancel();
+    super.dispose();
+  }
+
+  void _press() {
+    if (_armed != null) {
+      _armed!.cancel();
+      setState(() => _armed = null);
+      widget.onConfirmed();
+      return;
+    }
+    setState(() => _armed = Timer(const Duration(seconds: 3), () => mounted ? setState(() => _armed = null) : null));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final armed = _armed != null;
+    return Tooltip(
+      message: armed ? 'Click again to confirm' : 'Click twice to clear',
+      child: TextButton(
+        onPressed: _press,
+        style: armed ? TextButton.styleFrom(foregroundColor: AppColors.warn) : null,
+        child: Text(armed ? 'Click again to clear' : widget.label, style: const TextStyle(fontSize: 12)),
       ),
     );
   }

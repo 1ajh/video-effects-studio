@@ -372,9 +372,7 @@ class SpokenLine {
   SpokenLine toggleCut(int i, double at) {
     final w = words[i];
     final near = w.cuts.where((c) => (c - at).abs() < 0.04).toList();
-    final cuts = near.isNotEmpty
-        ? w.cuts.where((c) => !near.contains(c)).toList()
-        : ([...w.cuts, at]..sort());
+    final cuts = near.isNotEmpty ? w.cuts.where((c) => !near.contains(c)).toList() : ([...w.cuts, at]..sort());
     return withWords([...words.take(i), w.copyWith(cuts: cuts), ...words.skip(i + 1)]);
   }
 

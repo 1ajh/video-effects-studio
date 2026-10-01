@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_effects_studio/core/sparta/chart_import.dart';
-import 'package:video_effects_studio/core/sparta/composer.dart';
+import 'package:video_effects_studio/core/sparta/score.dart';
 import 'package:video_effects_studio/core/sparta/model.dart';
 import 'package:video_effects_studio/core/sparta/sectioning.dart';
 

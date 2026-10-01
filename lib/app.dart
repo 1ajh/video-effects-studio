@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'state/compilation_controller.dart';
@@ -63,7 +66,12 @@ class _StudioAppState extends State<StudioApp> {
     settings: settings,
   );
   late final playback = PlaybackController(available: widget.playerAvailable, project: project, preview: preview);
-  late final sparta = SpartaController(engine, store: widget.store);
+  late final sparta = SpartaController(
+    engine,
+    store: widget.store,
+    // Decoded here: loadString hands big assets to an isolate.
+    loadBundledCatalog: () async => utf8.decode((await rootBundle.load('bases/catalog.json')).buffer.asUint8List()),
+  );
   late final spartaPlayback = SpartaPlayback(available: widget.playerAvailable);
 
   @override

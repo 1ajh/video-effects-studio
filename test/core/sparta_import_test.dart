@@ -2,89 +2,61 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_effects_studio/core/sparta/base.dart';
 import 'package:video_effects_studio/core/sparta/base_renderer.dart';
 import 'package:video_effects_studio/core/sparta/chart_import.dart';
-import 'package:video_effects_studio/core/sparta/composer.dart';
+import 'package:video_effects_studio/core/sparta/charter.dart';
 import 'package:video_effects_studio/core/sparta/flm.dart';
 import 'package:video_effects_studio/core/sparta/flp.dart';
 import 'package:video_effects_studio/core/sparta/midi.dart';
 import 'package:video_effects_studio/core/sparta/model.dart';
+import 'package:video_effects_studio/core/sparta/project_transcriber.dart';
+import 'package:video_effects_studio/core/sparta/score.dart';
+import 'package:video_effects_studio/core/sparta/transcription.dart';
+
+/// A 16-bar D# base: chorus then epicness, a two-note hit line, four on the
+/// floor, snares on 2 and 4, off-beat hats.
+BaseTranscription _base() => BaseTranscription(
+  bpm: 140,
+  rootKey: 63,
+  lengthBeats: 64,
+  sections: const [Section(SectionKind.chorus, 0, 32), Section(SectionKind.epicness, 32, 64)],
+  hits: [for (var b = 0.0; b < 64; b += 1) GuideNote(b, 0.5, (b ~/ 4).isEven ? 0 : 1)],
+  kick: [for (var b = 0.0; b < 64; b += 1) b],
+  snare: [for (var b = 1.0; b < 64; b += 2) b],
+  hat: [for (var b = 0.5; b < 64; b += 1) b],
+);
 
 void main() {
   group('MIDI', () {
-    test('chart export round-trips through the importer', () {
-      final base = Composer(seed: 4).compose(defaultPlan(length: RemixLength.short)).base;
-      final bytes = MidiFile.fromChart(base).encode();
-      final src = MidiFile.parse(bytes).toChartSource('Round trip', 'x.mid');
-      expect(src.bpm, closeTo(base.bpm, 0.01));
-      final mapping = src.guessMapping();
-      expect(mapping.values.whereType<SampleRole>().toSet(), SampleRole.values.toSet());
-      final back = src.toBase(mapping);
-      int order(ChartNote x, ChartNote y) =>
-          x.beat != y.beat ? x.beat.compareTo(y.beat) : x.semitone.compareTo(y.semitone);
-      for (final role in SampleRole.values) {
-        final a = base.lane(role)..sort(order), b = back.lane(role)..sort(order);
-        expect(b.length, a.length, reason: role.name);
-        for (var i = 0; i < a.length; i++) {
-          expect(b[i].beat, closeTo(a[i].beat, 1e-3));
-          expect(b[i].length, closeTo(a[i].length, 1e-3));
-        }
-        if (role.isTonal) {
-          // Same melody up to a whole-octave choice of root.
-          final offset = b.first.semitone - a.first.semitone;
-          expect(offset % 12, 0);
-          for (var i = 0; i < a.length; i++) {
-            expect(b[i].semitone - a[i].semitone, offset);
-          }
-        }
-      }
-      // Section markers survive.
-      expect(back.sections.map((s) => s.kind), base.sections.map((s) => s.kind));
+    test('the remix chart exports one track per lane', () {
+      final t = _base();
+      final base = SpartaBase(id: 'x', name: 'Test', kind: BaseKind.audio, transcription: t, chart: Charter().write(t));
+      final src = MidiFile.parse(MidiFile.fromChart(base).encode()).toChartSource('Round trip', 'x.mid');
+      expect(src.bpm, closeTo(140, 0.01));
+      final names = src.tracks.map((tr) => tr.name).toList();
+      expect(names.any((n) => n.startsWith('Chorus words')), isTrue);
+      final pitch = src.tracks.firstWhere((tr) => tr.name.startsWith('Pitch'));
+      // The chorus is words only: pitch plays the base's hits in the epicness.
+      expect(pitch.notes.every((n) => n.beat >= 32), isTrue);
+      expect(pitch.notes.map((n) => n.key).toSet(), {63, 64});
+      expect(src.markers.map((m) => m.name), ['Chorus', 'Epicness']);
     });
 
-    test('an instrumental-only MIDI gets an automatic chart that follows its harmony', () {
-      final original = Composer(seed: 2).compose(defaultPlan());
-      final bytes = MidiFile.fromScore(original).encode();
-      final src = MidiFile.parse(bytes).toChartSource('Instrumental', 'i.mid');
-      expect(src.tracks.any((t) => t.drumKit), isTrue);
-      final mapping = src.guessMapping();
-      expect(mapping.values.whereType<SampleRole>(), isEmpty);
-      final base = src.toBase(mapping, seed: 9);
-      expect(base.lane(SampleRole.pitch), isNotEmpty);
-      expect(base.notes, contains('automatically'));
-      // Harmony detection: bar roots match what was composed.
-      var agree = 0;
-      for (var b = 0; b < original.base.barRoots.length; b++) {
-        if (base.barRoots[b] == original.base.barRoots[b]) agree++;
-      }
-      expect(agree / original.base.barRoots.length, greaterThan(0.85));
-      // Sample drums lock to the instrumental's own kicks.
-      final kicks = original.score.where((e) => e.instrument == Instrument.kick).map((e) => e.beat).toSet();
-      for (final n in base.lane(SampleRole.kick)) {
-        expect(kicks.any((k) => (k - n.beat).abs() < 1e-3), isTrue, reason: '${n.beat}');
-      }
-    });
-
-    test('a transposed instrumental shifts the sample melody with it', () {
-      final original = Composer(seed: 2).compose(defaultPlan(length: RemixLength.short));
-      final shifted = Composition(
-        original.base,
-        [
-          for (final e in original.score)
-            ScoreEvent(e.instrument, e.beat, e.length, midi: [for (final m in e.midi) m + 3], velocity: e.velocity),
-        ],
-        style: original.style,
-        seed: original.seed,
+    test("the base's notes export and read back as the same transcription", () {
+      final t = _base();
+      final src = MidiFile.parse(MidiFile.fromTranscription(t).encode()).toChartSource('Notes', 'n.mid');
+      final back = ProjectTranscriber().transcribe(src);
+      expect(back.bpm, closeTo(140, 0.01));
+      expect(back.rootPitchClass, 3);
+      expect(back.hits.map((h) => h.beat).toList(), t.hits.map((h) => h.beat).toList());
+      expect(
+        back.hits.map((h) => h.semitone - back.hits.first.semitone).toList(),
+        t.hits.map((h) => h.semitone).toList(),
       );
-      final src = MidiFile.parse(MidiFile.fromScore(shifted).encode()).toChartSource('F', 'f.mid');
-      final base = src.toBase(src.guessMapping(), seed: 1);
-      final ref = MidiFile.parse(MidiFile.fromScore(original).encode()).toChartSource('D', 'd.mid');
-      final refBase = ref.toBase(ref.guessMapping(), seed: 1);
-      final a = refBase.lane(SampleRole.pitch), b = base.lane(SampleRole.pitch);
-      expect(b.length, a.length);
-      for (var i = 0; i < a.length; i++) {
-        expect(b[i].semitone - a[i].semitone, 3);
-      }
+      expect(back.kick, t.kick);
+      expect(back.snare, t.snare);
+      expect(back.hat, t.hat);
     });
 
     test('rejects non-MIDI data', () {
@@ -95,18 +67,14 @@ void main() {
     });
   });
 
-  test('imported projects re-synthesize into a playable base', () {
-    final original = Composer(seed: 3).compose(defaultPlan(length: RemixLength.short, enabled: {SectionKind.chorus}));
-    final src = MidiFile.parse(MidiFile.fromScore(original).encode()).toChartSource('R', 'r.mid');
-    final mapping = src.guessMapping();
-    final base = src.toBase(mapping);
-    final comp = resynthesize(src, base, mapping);
-    expect(
-      comp.score.map((e) => e.instrument).toSet(),
-      containsAll([Instrument.kick, Instrument.bass, Instrument.stab]),
-    );
-    final audio = BaseRenderer().render(comp);
-    expect(audio.duration, closeTo(base.durationSeconds, 0.01));
+  test('a project without its audio re-synthesizes into a playable base', () {
+    final t = _base();
+    final src = MidiFile.parse(MidiFile.fromTranscription(t).encode()).toChartSource('R', 'r.mid');
+    final score = resynthesize(src);
+    expect(score.events.map((e) => e.instrument).toSet(), containsAll([Instrument.kick, Instrument.snare]));
+    final audio = BaseRenderer().render(score);
+    // The base plus its last notes ringing out.
+    expect(audio.duration, inInclusiveRange(64 * 60 / 140, 64 * 60 / 140 + 3));
     expect(audio.rms(), greaterThan(0.02));
   });
 
@@ -124,16 +92,14 @@ void main() {
       final pitch = src.tracks.firstWhere((t) => t.name == 'Pitch sample');
       // Pattern 2 is placed at bar 2 and bar 3 (8 and 12 beats).
       expect(pitch.notes.map((n) => n.beat), [8, 9, 12, 13]);
-      final mapping = src.guessMapping();
-      expect(mapping['c1'], SampleRole.pitch);
-      expect(mapping['c0'], isNull);
-      final base = src.toBase(mapping);
-      expect(base.bpm, 150);
-      expect(base.lane(SampleRole.pitch).map((n) => n.semitone).toSet(), {0, 3});
-      // Sample kicks follow the Kick channel.
-      expect(base.lane(SampleRole.kick).map((n) => n.beat), [0, 1, 2, 3]);
-      expect(base.sections.first.kind, SectionKind.intro);
-      expect(base.sections[1].kind, SectionKind.chorus);
+      final t = ProjectTranscriber().transcribe(src);
+      expect(t.bpm, 150);
+      // The hits are the pitch channel's notes; the kicks follow the Kick channel.
+      expect(t.hits.map((h) => h.beat), [8, 9, 12, 13]);
+      expect(t.hits.map((h) => h.semitone - t.hits.first.semitone).toSet(), {0, 3});
+      expect(t.kick, [0, 1, 2, 3]);
+      expect(t.sections.first.kind, SectionKind.intro);
+      expect(t.sections[1].kind, SectionKind.chorus);
     });
 
     test('rejects other files', () {
@@ -168,12 +134,9 @@ void main() {
       final bass = src.tracks.firstWhere((t) => t.name == 'Bass');
       // Clip placed at beat 4 with note ticks 0 and 128 (one beat).
       expect(bass.notes.map((n) => n.beat), [4, 5, 8, 9]);
-      final base = src.toBase(src.guessMapping());
-      expect(base.bpm, 140);
-      expect(base.lane(SampleRole.pitch), isNotEmpty);
-      // Bar 1 has no harmony yet (carries D), bar 2 is D, bar 3 E-flat.
-      expect(base.barRoots.take(3), [0, 0, 1]);
-      expect(base.lane(SampleRole.kick), hasLength(16));
+      final t = ProjectTranscriber().transcribe(src);
+      expect(t.bpm, 140);
+      expect(t.kick, hasLength(16));
     });
 
     test('reads older projects: clip positions, loops, offsets and per-track kits', () {

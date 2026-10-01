@@ -52,8 +52,7 @@ class SamplePicks {
     final list = [...of(SampleRole.pitch)];
     if (line == null) return list;
     double rank(SampleCandidate c) {
-      final inLine =
-          c.sourceIndex == line.sourceIndex && c.start >= line.start - 0.05 && c.end <= line.end + 0.05;
+      final inLine = c.sourceIndex == line.sourceIndex && c.start >= line.start - 0.05 && c.end <= line.end + 0.05;
       return c.score + (inLine ? 0.12 : 0);
     }
 
@@ -67,9 +66,8 @@ class SamplePicks {
   Map<SampleRole, SampleCandidate> assignDistinct({SpokenLine? line, double tolerance = 0.7}) {
     const order = [SampleRole.pitch, SampleRole.snare, SampleRole.kick, SampleRole.hat];
     final chosen = <SampleRole, SampleCandidate>{};
-    bool clashes(SampleCandidate c) => chosen.values.any(
-      (o) => o.sourceIndex == c.sourceIndex && c.start < o.end - 0.01 && o.start < c.end - 0.01,
-    );
+    bool clashes(SampleCandidate c) =>
+        chosen.values.any((o) => o.sourceIndex == c.sourceIndex && c.start < o.end - 0.01 && o.start < c.end - 0.01);
     for (final role in order) {
       final list = role == SampleRole.pitch ? pitchFor(line) : of(role);
       if (list.isEmpty) continue;

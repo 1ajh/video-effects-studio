@@ -12,3 +12,7 @@ and drums) sent in by people through the **Base transcription** issue form.
 When a maintainer labels such an issue `transcription-approved`, the
 `Add approved transcription` workflow checks the attached file and opens a
 pull request adding it here with the sender's credit.
+
+Maintainers can make a transcription from a base's project (exact) or audio
+(a draft to check) with
+`dart run tool/transcribe_base.dart <base.flp|.mid|.mp3> [--audio base.mp3] --name … --maker … --catalog <id> --credit …`.

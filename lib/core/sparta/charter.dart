@@ -24,11 +24,13 @@ enum PitchMode {
 class SectionChoice {
   const SectionChoice({this.words, this.pitch, this.pitchPattern, this.variant = 0});
 
-  /// Word pattern id, or '' for no chorus words here.
+  /// Word pattern id (`custom:<notation>` for a typed one), or '' for no
+  /// chorus words here.
   final String? words;
   final PitchMode? pitch;
 
-  /// Pitch pattern id when [pitch] is [PitchMode.pattern].
+  /// Pitch pattern id (`custom:<notation>` for a typed one) when [pitch]
+  /// is [PitchMode.pattern].
   final String? pitchPattern;
 
   /// Random-mode take for this section (re-roll).
@@ -71,6 +73,7 @@ class RandomOptions {
     this.freestyles = true,
     this.pitchPatterns = true,
     this.samples = true,
+    this.layout = true,
     this.seed = 1,
   });
 
@@ -85,22 +88,33 @@ class RandomOptions {
 
   /// Different samples per section.
   final bool samples;
+
+  /// Sections play another part's patterns (a chorus can become a madness…).
+  final bool layout;
   final int seed;
 
-  RandomOptions copyWith({bool? enabled, bool? freestyles, bool? pitchPatterns, bool? samples, int? seed}) =>
-      RandomOptions(
-        enabled: enabled ?? this.enabled,
-        freestyles: freestyles ?? this.freestyles,
-        pitchPatterns: pitchPatterns ?? this.pitchPatterns,
-        samples: samples ?? this.samples,
-        seed: seed ?? this.seed,
-      );
+  RandomOptions copyWith({
+    bool? enabled,
+    bool? freestyles,
+    bool? pitchPatterns,
+    bool? samples,
+    bool? layout,
+    int? seed,
+  }) => RandomOptions(
+    enabled: enabled ?? this.enabled,
+    freestyles: freestyles ?? this.freestyles,
+    pitchPatterns: pitchPatterns ?? this.pitchPatterns,
+    samples: samples ?? this.samples,
+    layout: layout ?? this.layout,
+    seed: seed ?? this.seed,
+  );
 
   Map<String, Object?> toJson() => {
     'enabled': enabled,
     'freestyles': freestyles,
     'pitchPatterns': pitchPatterns,
     'samples': samples,
+    'layout': layout,
     'seed': seed,
   };
 
@@ -109,6 +123,7 @@ class RandomOptions {
     freestyles: j['freestyles'] as bool? ?? true,
     pitchPatterns: j['pitchPatterns'] as bool? ?? true,
     samples: j['samples'] as bool? ?? true,
+    layout: j['layout'] as bool? ?? true,
     seed: (j['seed'] as num?)?.toInt() ?? 1,
   );
 }
@@ -127,6 +142,18 @@ class Charter {
   Charter({PatternLibrary? library}) : lib = library ?? PatternLibrary.instance;
 
   final PatternLibrary lib;
+
+  /// A pattern by id; `custom:<notation>` parses a typed one.
+  Pattern? pattern(PatternKind kind, String id) {
+    if (id.startsWith('custom:')) {
+      try {
+        return PatternLibrary.custom(kind, id.substring(7));
+      } on PatternFormatException {
+        return null;
+      }
+    }
+    return lib.byId(id);
+  }
 
   /// The default word pattern for a section kind (null: no words there).
   Pattern? defaultWords(SectionKind kind) => switch (kind) {
@@ -163,9 +190,13 @@ class Charter {
     final sections = t.sections.isEmpty ? [Section(SectionKind.other, 0, t.lengthBeats)] : t.sections;
     var quoted = false;
     for (var i = 0; i < sections.length; i++) {
-      final s = sections[i];
       final choice = choices[i] ?? const SectionChoice();
       final rng = math.Random(random.seed * 7919 + i * 104729 + choice.variant * 31 + 17);
+      var s = sections[i];
+      // Random layout: the section plays another part's patterns.
+      if (random.enabled && random.layout && _shuffled.contains(s.kind) && rng.nextDouble() < 0.5) {
+        s = Section(_shuffled[rng.nextInt(_shuffled.length)], s.startBeat, s.endBeat, name: s.name);
+      }
 
       // Chorus words.
       final words = _wordsFor(s.kind, choice, random, rng);
@@ -178,7 +209,7 @@ class Charter {
       // Pitch.
       final pitchOff = s.kind == SectionKind.chorus && !pitchInChorus && choice.pitch == null;
       var mode = choice.pitch ?? (pitchOff ? PitchMode.off : PitchMode.base);
-      Pattern? pitchPattern = choice.pitchPattern == null ? null : lib.byId(choice.pitchPattern!);
+      Pattern? pitchPattern = choice.pitchPattern == null ? null : pattern(PatternKind.pitch, choice.pitchPattern!);
       if (choice.pitch == null && !pitchOff && random.enabled && random.pitchPatterns) {
         final options = lib.of(PatternKind.pitch, section: s.kind.wiki).where((p) => !p.irregular).toList();
         if (options.isNotEmpty && rng.nextDouble() < 0.6) {
@@ -239,8 +270,16 @@ class Charter {
     return out;
   }
 
+  static const _shuffled = [
+    SectionKind.chorus,
+    SectionKind.dundundenden,
+    SectionKind.epicness,
+    SectionKind.awesomeness,
+    SectionKind.madness,
+  ];
+
   Pattern? _wordsFor(SectionKind kind, SectionChoice choice, RandomOptions random, math.Random rng) {
-    if (choice.words != null) return choice.words!.isEmpty ? null : lib.byId(choice.words!);
+    if (choice.words != null) return choice.words!.isEmpty ? null : pattern(PatternKind.words, choice.words!);
     final base = defaultWords(kind);
     if (base == null || !random.enabled || !random.freestyles) return base;
     final options = lib.of(PatternKind.words, section: kind.wiki).where((p) => !p.irregular).toList();

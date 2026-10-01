@@ -5,7 +5,7 @@ import '../theme.dart';
 
 Color laneColor(SampleRole r) => switch (r) {
   SampleRole.pitch => const Color(0xFFA78BFA),
-  SampleRole.chop => const Color(0xFFF472B6),
+  SampleRole.word => const Color(0xFFF472B6),
   SampleRole.kick => const Color(0xFFFB923C),
   SampleRole.snare => const Color(0xFFFBBF24),
   SampleRole.hat => const Color(0xFF22D3EE),
@@ -14,7 +14,7 @@ Color laneColor(SampleRole r) => switch (r) {
 
 IconData laneIcon(SampleRole r) => switch (r) {
   SampleRole.pitch => Icons.music_note,
-  SampleRole.chop => Icons.content_cut,
+  SampleRole.word => Icons.record_voice_over_outlined,
   SampleRole.kick => Icons.circle,
   SampleRole.snare => Icons.album_outlined,
   SampleRole.hat => Icons.blur_on,
@@ -25,6 +25,8 @@ Color sectionColor(SectionKind k) => switch (k) {
   SectionKind.intro => const Color(0xFF64748B),
   SectionKind.chorus => const Color(0xFF7C5CFF),
   SectionKind.dundundenden => const Color(0xFF0EA5E9),
+  SectionKind.preEpicness => const Color(0xFFFCD34D),
+  SectionKind.postEpicness => const Color(0xFFD97706),
   SectionKind.epicness => const Color(0xFFF59E0B),
   SectionKind.madness => const Color(0xFFEF4444),
   SectionKind.awesomeness => const Color(0xFFEC4899),
