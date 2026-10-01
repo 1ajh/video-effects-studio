@@ -1398,14 +1398,27 @@ class _SoundCard extends StatelessWidget {
               onChanged: (o) => c.setEnhance(o == null ? e.copyWith(clearOctave: true) : e.copyWith(forceOctave: o)),
             ),
           ),
-          _Labeled(
-            label: 'Pitched notes',
-            tooltip: c.mixSettings.pitchRender.blurb,
-            child: SegmentedButton<PitchRender>(
-              showSelectedIcon: false,
-              segments: [for (final r in PitchRender.values) ButtonSegment(value: r, label: Text(r.label))],
-              selected: {c.mixSettings.pitchRender},
-              onSelectionChanged: (s) => c.setMixSettings(c.mixSettings.copyWith(pitchRender: s.first)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Pitched notes', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                const SizedBox(height: 4),
+                SegmentedButton<PitchRender>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final r in PitchRender.values) ButtonSegment(value: r, label: Text(r.label), tooltip: r.blurb),
+                  ],
+                  selected: {c.mixSettings.pitchRender},
+                  onSelectionChanged: (s) => c.setMixSettings(c.mixSettings.copyWith(pitchRender: s.first)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  c.mixSettings.pitchRender.blurb,
+                  style: const TextStyle(fontSize: 11, color: AppColors.faint, height: 1.35),
+                ),
+              ],
             ),
           ),
           _Labeled(

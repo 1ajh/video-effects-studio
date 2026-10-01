@@ -189,7 +189,7 @@ double nearestOfClass(double hz, int pc) {
 /// sample is traversed back and forth so the vowel sustains.
 ///
 /// Without [targetHz] the note is the [pitchClass] (default D) closest to
-/// the sample's own pitch.
+/// the sample's own pitch, moved up by octaves to at least [minHz].
 CorrectedSample? psolaCorrect(
   Float32List x,
   int sampleRate, {
@@ -198,13 +198,18 @@ CorrectedSample? psolaCorrect(
   double? lengthSeconds,
   double formant = 1.0,
   double follow = 0,
+  double minHz = 0,
 }) {
   final track = trackPitch(x, sampleRate);
   if (track == null) return null;
   final marks = pitchMarks(x, track);
   if (marks.length < 4) return null;
   final src = track.medianHz;
-  final target = targetHz ?? nearestOfClass(src, pitchClass);
+  var target = targetHz ?? nearestOfClass(src, pitchClass);
+  // Never under [minHz] (whole octaves up from the nearest note).
+  while (targetHz == null && minHz > 0 && target < minHz * 0.999) {
+    target *= 2;
+  }
   final outLen = ((lengthSeconds ?? x.length / sampleRate) * sampleRate).round();
   final out = Float64List(outLen + 4096);
   final norm = Float64List(outLen + 4096);

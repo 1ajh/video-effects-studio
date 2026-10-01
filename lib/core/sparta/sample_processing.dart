@@ -124,6 +124,10 @@ class SampleEnhancer {
   final math.Random _rng;
   static const sr = ProcessedSample.sampleRate;
 
+  /// Automatic octaves keep the pitch and pads above the bass: at least the
+  /// root an octave over the bass sample's (D3 for a D base and bass on D2).
+  double get _aboveBass => 440 * math.pow(2, (12 * (options.bassOctave + 2) + rootPc - 69) / 12).toDouble();
+
   ProcessedSample process(SampleCandidate c, AudioBuffer raw, String sourcePath) {
     final mono = raw.mono().data;
     final x = Float32List.fromList(mono);
@@ -160,6 +164,7 @@ class SampleEnhancer {
       pitchClass: rootPc,
       lengthSeconds: math.max(natural, options.sustainSeconds),
       follow: options.tuning == PitchTuning.natural ? 1 : 0,
+      minHz: _aboveBass,
     );
     if (corrected == null) throw UntunableSample(c);
     final out = corrected.audio;
@@ -227,6 +232,7 @@ class SampleEnhancer {
       targetHz: o == null ? null : 440 * math.pow(2, (12 * (o + 1) + rootPc - 69) / 12).toDouble(),
       pitchClass: rootPc,
       lengthSeconds: math.max(natural, options.sustainSeconds * 1.5),
+      minHz: _aboveBass,
     );
     if (corrected == null) throw UntunableSample(c);
     final out = corrected.audio;
