@@ -48,6 +48,7 @@ flutter:
 
   assets:
     - assets/fonts/Inter-ExtraBold.ttf
+    - assets/fonts/Inter-LICENSE.txt
     - bases/catalog.json
     - bases/transcriptions/
     - assets/branding/logo_256.png

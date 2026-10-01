@@ -9,7 +9,7 @@ A desktop studio for **Sparta remixes** and **logo-editing style video effects**
 
 ![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-7C5CFF)
 ![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
-![License](https://img.shields.io/badge/License-MIT-green)
+![License](https://img.shields.io/badge/License-proprietary-FF5A36)
 [![CI](https://github.com/1ajh/video-effects-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/1ajh/video-effects-studio/actions/workflows/ci.yml)
 
 ## What's inside
@@ -59,7 +59,7 @@ The third mode (`Ctrl+3`) makes a Sparta remix the way the community does: a rea
 
 ## Download
 
-Grab the latest build from [Releases](https://github.com/1ajh/video-effects-studio/releases). FFmpeg is bundled, so there's nothing else to install.
+SRLE Studio costs $50, once, from **[srle.ajh.wtf](https://srle.ajh.wtf)**: you get a license key that unlocks it on up to 3 computers. The builds are on the public repository's [Releases](https://github.com/1ajh/srle-studio/releases) (the app checks there for updates). FFmpeg is bundled, so there's nothing else to install.
 
 | Platform | File | Notes |
 |---|---|---|
@@ -67,7 +67,7 @@ Grab the latest build from [Releases](https://github.com/1ajh/video-effects-stud
 | macOS 12+ | `SRLEStudio-macos.dmg` | Unsigned: right-click → Open the first time |
 | Linux (x64) | `SRLEStudio-linux.tar.gz` | Needs GTK 3 and **libmpv** for in-app playback (`sudo apt install libmpv2`) |
 
-Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobile builds just show the effect list and a download link.
+Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobile builds just show a link to the store.
 
 ## Using it
 
@@ -110,10 +110,13 @@ Linux build dependencies:
 sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev ffmpeg
 ```
 
+Debug builds run without a key. Release builds need the store's public key (`--dart-define=SRLE_LICENSE_PUBLIC_KEY=…`, see [Licensing](#licensing-and-the-store)).
+
 ### Tests
 
 ```bash
-flutter test --exclude-tags ffmpeg   # unit + widget tests (~540)
+flutter test --exclude-tags ffmpeg   # unit + widget tests (~990)
+(cd store && npm test)               # the store
 flutter test --tags ffmpeg           # renders every effect and full Sparta remixes with real FFmpeg
 VFX_FFMPEG=/path/to/ffmpeg flutter test --tags ffmpeg   # against a specific build
 ```
@@ -147,6 +150,13 @@ lib/
   ui/          the editor: browser, preview, inspector, compilation dock, Sparta workspace, queue, pages
 ```
 
+## Licensing and the store
+
+- **The store** ([`store/`](store)) is the site at srle.ajh.wtf: orders paid by Cash App or Apple Pay, an admin page that marks them paid and makes each a license key, and the activation API. It's plain Node with no dependencies; [store/README.md](store/README.md) covers running it on the VPS.
+- **Keys**: the app asks for the key once, sends it with a fingerprint of the computer to `/api/activate`, and keeps the Ed25519-signed answer. After that it checks the signature offline against the public key built into the release (`lib/core/licensing/`). The admin page can revoke a key or reset its computers.
+- **The public repository** [1ajh/srle-studio](https://github.com/1ajh/srle-studio) holds the releases, the base catalog and transcriptions (the app reads them from there), and issues. Its README, licenses, issue templates and the transcription workflow live in [`public-repo/`](public-repo); `tool/publish_public_repo.sh <checkout>` copies them, the logo and `bases/` into a checkout of it.
+- **Releases**: *Build and Release* builds with the newest `bases/` from the public repository and publishes there. It needs the `SRLE_LICENSE_PUBLIC_KEY` Actions variable (the store's public key) and a `PUBLIC_REPO_TOKEN` secret (a fine-grained token with *Contents: read and write* on 1ajh/srle-studio).
+
 ## Credits
 
 - Sparta patterns and section names come from the [Sparta Remix Wiki](https://spartaremix.fandom.com/wiki/Category:Sparta_Remix_Components) (CC BY-SA); bases are credited to their makers in the app
@@ -154,4 +164,4 @@ lib/
 - Effect recipes are inspired by the [Logo Editing Wiki](https://logo-editing.fandom.com/wiki/Category:Effects) community and the original NotSoBot tags by **AJH**
 - [FFmpeg](https://ffmpeg.org), [Flutter](https://flutter.dev), [media_kit](https://github.com/media-kit/media-kit), [Inter](https://rsms.me/inter/) (SIL OFL)
 
-MIT License, see [LICENSE](LICENSE).
+© AJH, all rights reserved, see [LICENSE](LICENSE). Third-party licenses (FFmpeg, Inter, the wikis) are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which every download includes.

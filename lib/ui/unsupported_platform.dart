@@ -3,7 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/effects/effect.dart';
 import '../core/effects/registry.dart';
-import '../state/update_controller.dart';
+import '../core/licensing/license.dart';
 import 'theme.dart';
 
 /// Shown on web and mobile: explains that rendering needs the desktop app
@@ -62,10 +62,9 @@ class _Landing extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     FilledButton.icon(
-                      onPressed: () =>
-                          launchUrl(Uri.parse(UpdateController.releasesUrl), mode: LaunchMode.externalApplication),
+                      onPressed: () => launchUrl(Uri.parse(storeUrl), mode: LaunchMode.externalApplication),
                       icon: const Icon(Icons.download),
-                      label: const Text('Download the desktop app'),
+                      label: const Text('Get the desktop app'),
                     ),
                     const SizedBox(height: 28),
                     Text('${effects.length} effects', style: const TextStyle(fontWeight: FontWeight.w700)),

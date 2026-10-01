@@ -29,6 +29,13 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Latest base library from the public repository
+        shell: bash
+        run: |
+          # Approved transcriptions land in 1ajh/srle-studio: ship the newest.
+          if git clone --depth 1 https://github.com/1ajh/srle-studio public-latest && [ -f public-latest/bases/catalog.json ]; then
+            cp -R public-latest/bases/. bases/
+          fi
       - run: flutter pub get
       - name: Build
         shell: bash
@@ -47,7 +54,9 @@ jobs:
 
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath SRLEStudio-windows.zip
+        run: |
+          Copy-Item THIRD_PARTY_NOTICES.md build\windows\x64\runner\Release\
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath SRLEStudio-windows.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -67,6 +76,13 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Latest base library from the public repository
+        shell: bash
+        run: |
+          # Approved transcriptions land in 1ajh/srle-studio: ship the newest.
+          if git clone --depth 1 https://github.com/1ajh/srle-studio public-latest && [ -f public-latest/bases/catalog.json ]; then
+            cp -R public-latest/bases/. bases/
+          fi
       - run: flutter pub get
       - name: Build
         run: |
@@ -81,7 +97,9 @@ jobs:
           build/linux/x64/release/bundle/ffmpeg -hide_banner -version | head -1
 
       - name: Package
-        run: tar -czf SRLEStudio-linux.tar.gz -C build/linux/x64/release/bundle .
+        run: |
+          cp THIRD_PARTY_NOTICES.md build/linux/x64/release/bundle/
+          tar -czf SRLEStudio-linux.tar.gz -C build/linux/x64/release/bundle .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -97,6 +115,13 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Latest base library from the public repository
+        shell: bash
+        run: |
+          # Approved transcriptions land in 1ajh/srle-studio: ship the newest.
+          if git clone --depth 1 https://github.com/1ajh/srle-studio public-latest && [ -f public-latest/bases/catalog.json ]; then
+            cp -R public-latest/bases/. bases/
+          fi
       - run: flutter pub get
       - name: Build
         run: |
@@ -127,6 +152,7 @@ jobs:
           mkdir dmg
           cp -R "build/macos/Build/Products/Release/SRLE Studio.app" dmg/
           ln -s /Applications dmg/Applications
+          cp THIRD_PARTY_NOTICES.md dmg/
           hdiutil create -volname "SRLE Studio" -srcfolder dmg -ov -format UDZO SRLEStudio-macos.dmg
 
       - uses: actions/upload-artifact@v4
@@ -159,11 +185,17 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Check the publishing token
+        env:
+          TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          test -n "$TOKEN" || { echo "::error::Add a PUBLIC_REPO_TOKEN secret that can write releases to 1ajh/srle-studio (README.md)"; exit 1; }
       - uses: softprops/action-gh-release@v2
         with:
-          # A manual run creates the tag on the commit it built.
+          # Releases go to the public repository; the code here is private.
+          repository: 1ajh/srle-studio
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
           tag_name: ${{ steps.tag.outputs.name }}
-          target_commitish: ${{ github.sha }}
           files: |
             artifacts/windows/SRLEStudio-windows.zip
             artifacts/linux/SRLEStudio-linux.tar.gz

@@ -16,7 +16,8 @@ class UpdateInfo {
 
 /// Checks GitHub releases for a newer version.
 class UpdateController extends ChangeNotifier {
-  static const repo = '1ajh/video-effects-studio';
+  /// The public repository releases are published to (the code is private).
+  static const repo = '1ajh/srle-studio';
   static const releasesUrl = 'https://github.com/$repo/releases';
 
   UpdateInfo? _available;

@@ -123,14 +123,14 @@ void main() {
     expect(BaseLibrary.submissionFileName(t), 'Sparta Venom Base.sparta.json');
     final url = BaseLibrary.submissionUrl(t, credit: 'Me');
     expect(url.host, 'github.com');
-    expect(url.path, '/1ajh/video-effects-studio/issues/new');
+    expect(url.path, '/1ajh/srle-studio/issues/new');
     expect(url.queryParameters['template'], 'base-transcription.yml');
     expect(url.queryParameters['base'], 'Sparta Venom Base');
     expect(url.queryParameters['catalog'], 'hb/venom');
     expect(url.queryParameters['sha1'], 'abc');
     expect(url.queryParameters['credit'], 'Me');
     // The issue form has a field for every prefilled value.
-    final form = File(p.join('.github', 'ISSUE_TEMPLATE', 'base-transcription.yml')).readAsStringSync();
+    final form = File(p.join('public-repo', '.github', 'ISSUE_TEMPLATE', 'base-transcription.yml')).readAsStringSync();
     for (final id in ['base', 'maker', 'catalog', 'sha1', 'credit', 'notes', 'transcription']) {
       expect(form, contains('id: $id'), reason: id);
     }

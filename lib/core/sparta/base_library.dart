@@ -152,8 +152,8 @@ class BaseLibrary {
   final String cacheDir;
   final http.Client _client;
 
-  static const repoRaw = 'https://raw.githubusercontent.com/1ajh/video-effects-studio/main/bases/';
-  static const issueUrl = 'https://github.com/1ajh/video-effects-studio/issues/new';
+  static const repoRaw = 'https://raw.githubusercontent.com/1ajh/srle-studio/main/bases/';
+  static const issueUrl = 'https://github.com/1ajh/srle-studio/issues/new';
 
   String get _dir => p.join(cacheDir, 'bases');
   File get _catalogCache => File(p.join(_dir, 'catalog.json'));

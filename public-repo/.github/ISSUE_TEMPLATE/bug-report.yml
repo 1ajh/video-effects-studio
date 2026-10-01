@@ -1,0 +1,26 @@
+name: Bug report
+description: Something in SRLE Studio doesn't work.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks! Please don't paste your license key here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Paste any error text exactly.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings → About shows it.
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
