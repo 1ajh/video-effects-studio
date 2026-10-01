@@ -690,11 +690,13 @@ class _TimelinePainter extends CustomPainter {
     SampleRole.quote,
     SampleRole.word,
     SampleRole.pitch,
+    SampleRole.bass,
+    SampleRole.pad,
     SampleRole.kick,
     SampleRole.snare,
     SampleRole.hat,
   ];
-  static const height = 24 + 14 + _hitsH + 3 * _lane + 18 + 6 * _lane + 4;
+  static const height = 24 + 14 + _hitsH + 3 * _lane + 18 + 8 * _lane + 4;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -824,7 +826,14 @@ class _SamplesGrid extends StatelessWidget {
       runSpacing: 12,
       children: [
         const _WordsCard(),
-        for (final role in const [SampleRole.pitch, SampleRole.kick, SampleRole.snare, SampleRole.hat])
+        for (final role in const [
+          SampleRole.pitch,
+          SampleRole.bass,
+          SampleRole.pad,
+          SampleRole.kick,
+          SampleRole.snare,
+          SampleRole.hat,
+        ])
           if (c.picks[role] != null) _SampleCard(pick: c.picks[role]!),
       ],
     );
@@ -943,6 +952,13 @@ class _SampleCard extends StatelessWidget {
                 Pill('→ ${_noteOfHz(tuned)}', color: color, tooltip: 'Tuned to ${tuned.toStringAsFixed(1)} Hz'),
               const Spacer(),
               Pill('${(cand.score * 100).round()}%', tooltip: 'How well it fits this lane'),
+              Tooltip(
+                message: c.muted.contains(role) ? 'Off: switch the ${role.label.toLowerCase()} on' : 'Playing',
+                child: Transform.scale(
+                  scale: 0.72,
+                  child: Switch(value: !c.muted.contains(role), onChanged: (on) => c.setLaneOn(role, on)),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),

@@ -1009,7 +1009,15 @@ class SpartaController extends ChangeNotifier {
   List<ChartNote> get chart {
     final t = transcription;
     if (t == null) return const [];
-    return Charter().write(t, choices: choices, random: random, pitchInChorus: pitchInChorus, muted: muted);
+    final quote = line?.quote;
+    return Charter().write(
+      t,
+      choices: choices,
+      random: random,
+      pitchInChorus: pitchInChorus,
+      muted: muted,
+      quoteBeats: quote == null ? 8 : quote.duration * t.bpm / 60,
+    );
   }
 
   void _onEngine() {

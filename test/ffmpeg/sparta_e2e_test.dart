@@ -34,6 +34,10 @@ BaseTranscription _transcription() => BaseTranscription(
   hits: [
     for (var b = 0.0; b < 48; b += 1) GuideNote(b, 0.75, const [0, 0, 1, 1, -2, -2, 1, 1][b.toInt() % 8]),
   ],
+  chords: [
+    for (var b = 8.0; b < 48; b += 2)
+      for (final i in const [0, 4, 7]) GuideNote(b, 2, const [0, 1, -2, 1][((b - 8) ~/ 2) % 4] + i),
+  ],
   kick: [for (var b = 8.0; b < 48; b += 1) b],
   snare: [for (var b = 9.0; b < 48; b += 2) b],
   hat: [for (var b = 8.5; b < 48; b += 1) b],
@@ -74,8 +78,11 @@ void main() {
     final found = await engine.findSamples(sources);
     final line = found.lines.first;
     Future<ProcessedSample> cut(SampleCandidate c) => engine.prepareSample(c, paths[c.sourceIndex], rootPc: 2);
+    final picked = found.assignDistinct(line: line);
     samples = {
-      for (final e in found.assignDistinct(line: line).entries) e.key: [await cut(e.value)],
+      for (final e in picked.entries) e.key: [await cut(e.value)],
+      SampleRole.bass: [await cut(picked[SampleRole.pitch]!.withRole(SampleRole.bass))],
+      SampleRole.pad: [await cut(picked[SampleRole.pitch]!.withRole(SampleRole.pad))],
       SampleRole.word: [for (final c in line.wordCandidates) await cut(c)],
       SampleRole.quote: [await cut(line.quote)],
     };

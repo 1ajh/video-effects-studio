@@ -210,6 +210,7 @@ class Charter {
     RandomOptions random = const RandomOptions(),
     bool pitchInChorus = false,
     Set<SampleRole> muted = const {},
+    double quoteBeats = 8,
   }) {
     final out = <ChartNote>[];
     final sections = t.sections.isEmpty ? [Section(SectionKind.other, 0, t.lengthBeats)] : t.sections;
@@ -239,6 +240,19 @@ class Charter {
       if (words != null) {
         for (final h in words.looped((s.lengthBeats * 4).roundToDouble())) {
           add(ChartNote(role: SampleRole.word, beat: s.startBeat + h.step / 4, length: h.length / 4, slot: h.slot));
+        }
+      } else if (s.kind == SectionKind.intro && choice.words == null) {
+        // A long intro (many modern bases open with 16 bars or more) plays
+        // the chorus once the quote is over.
+        final bar = t.beatsPerBar.toDouble();
+        final from = s.startBeat + ((quoteBeats / bar).ceil() * bar).clamp(2 * bar, double.infinity);
+        if (s.endBeat - from >= 4 * bar) {
+          final chorus = lib.classic(PatternKind.words, 'chorus');
+          if (chorus != null) {
+            for (final h in chorus.looped(((s.endBeat - from) * 4).roundToDouble())) {
+              add(ChartNote(role: SampleRole.word, beat: from + h.step / 4, length: h.length / 4, slot: h.slot));
+            }
+          }
         }
       }
 

@@ -186,6 +186,29 @@ class ProjectTranscriber {
     }
     if (sections.isEmpty) sections = [Section(SectionKind.other, 0, length)];
 
+    // The bass line and the chords, from the base's bass and pad / chord
+    // tracks (what the bass sample and the pads play).
+    final guides = {for (final t in choice) ?t?.id};
+    final bassTracks = [
+      for (final t in candidates)
+        if (_isBass(t) && !guides.contains(t.id)) t,
+    ];
+    final bass = _lowestLine([for (final t in bassTracks) ...t.notes], root);
+    final chordTracks = [
+      for (final t in candidates)
+        if (!_isBass(t) && !guides.contains(t.id) && _isChords(t)) t,
+    ];
+    var chords = _voicings([for (final t in chordTracks) ...t.notes], root);
+    if (chords.isEmpty && bass.isNotEmpty) {
+      // No chord part: power chords on the bass line's notes.
+      chords = [
+        for (final b in bass)
+          if (b.length >= 0.5)
+            for (final iv in const [0, 7, 12])
+              GuideNote(b.beat, b.length, b.semitone % 12 - (b.semitone % 12 > 5 ? 12 : 0) + iv),
+      ];
+    }
+
     return BaseTranscription(
       bpm: src.bpm,
       beatsPerBar: bpb,
@@ -193,6 +216,8 @@ class ProjectTranscriber {
       lengthBeats: length,
       sections: sections,
       hits: centred,
+      bass: bass,
+      chords: chords,
       kick: drums[SampleRole.kick]!,
       snare: drums[SampleRole.snare]!,
       hat: drums[SampleRole.hat]!,
@@ -200,6 +225,44 @@ class ProjectTranscriber {
       patterns: patterns,
       baseName: src.name,
     );
+  }
+
+  /// A pad / chord part: named so, or mostly playing several notes at once.
+  static bool _isChords(ChartTrack t) {
+    if (t.isDrums) return false;
+    final n = ' ${'${t.name} ${t.detail}'.toLowerCase()} ';
+    if (RegExp(r'pad|chord|string|choir|organ|piano|synth ?chord').hasMatch(n)) return true;
+    final onsets = t.notes.map((x) => (x.beat * 32).round()).toSet().length;
+    return onsets > 0 && t.notes.length / onsets >= 2.5;
+  }
+
+  /// One bass note per onset (the lowest), as semitones from [root].
+  static List<GuideNote> _lowestLine(List<RawNote> notes, int root) {
+    final byOnset = <int, RawNote>{};
+    for (final n in notes) {
+      final k = (n.beat * 32).round();
+      final o = byOnset[k];
+      if (o == null || n.key < o.key) byOnset[k] = n;
+    }
+    final keys = byOnset.keys.toList()..sort();
+    return [
+      for (final k in keys) GuideNote(byOnset[k]!.beat, math.max(1 / 16, byOnset[k]!.length), byOnset[k]!.key - root),
+    ];
+  }
+
+  /// Chord voices (at most four per chord, the lowest), as semitones from
+  /// [root].
+  static List<GuideNote> _voicings(List<RawNote> notes, int root) {
+    final byOnset = <int, List<RawNote>>{};
+    for (final n in notes) {
+      byOnset.putIfAbsent((n.beat * 32).round(), () => []).add(n);
+    }
+    final keys = byOnset.keys.toList()..sort();
+    return [
+      for (final k in keys)
+        for (final n in (byOnset[k]!..sort((a, b) => a.key.compareTo(b.key))).take(4))
+          GuideNote(n.beat, math.max(1 / 16, n.length), n.key - root),
+    ];
   }
 
   static bool _isBass(ChartTrack t) {

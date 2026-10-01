@@ -1398,6 +1398,29 @@ class _SoundCard extends StatelessWidget {
               onChanged: (o) => c.setEnhance(o == null ? e.copyWith(clearOctave: true) : e.copyWith(forceOctave: o)),
             ),
           ),
+          _Labeled(
+            label: 'Pitched notes',
+            tooltip: c.mixSettings.pitchRender.blurb,
+            child: SegmentedButton<PitchRender>(
+              showSelectedIcon: false,
+              segments: [for (final r in PitchRender.values) ButtonSegment(value: r, label: Text(r.label))],
+              selected: {c.mixSettings.pitchRender},
+              onSelectionChanged: (s) => c.setMixSettings(c.mixSettings.copyWith(pitchRender: s.first)),
+            ),
+          ),
+          _Labeled(
+            label: 'Bass octave',
+            tooltip: 'Which octave the bass sample is tuned into (2: the classic deep bass)',
+            child: DropdownButton<int>(
+              value: e.bassOctave,
+              isDense: true,
+              underline: const SizedBox.shrink(),
+              items: [
+                for (final o in [1, 2, 3]) DropdownMenuItem<int>(value: o, child: Text('Octave $o')),
+              ],
+              onChanged: (o) => o == null ? null : c.setEnhance(e.copyWith(bassOctave: o)),
+            ),
+          ),
           SwitchRow(
             title: 'Chorus Crisp',
             subtitle: 'Doubled, tighter attack on the chorus words (edits the word itself)',
@@ -1596,6 +1619,8 @@ class _MixCard extends StatelessWidget {
               color: laneColor(r),
               value: m.laneDb[r] ?? 0,
               onChanged: (v) => c.setLaneDb(r, v),
+              on: !c.muted.contains(r),
+              onToggle: (on) => c.setLaneOn(r, on),
             ),
           _LevelSlider(
             label: 'Reverb',
@@ -1609,7 +1634,7 @@ class _MixCard extends StatelessWidget {
           const SizedBox(height: 4),
           SwitchRow(
             title: 'Export stems',
-            subtitle: 'Base, pitch, words, drums and quote as WAVs',
+            subtitle: 'Base, pitch, bass, pads, words, drums and quote as WAVs',
             value: c.exportStems,
             onChanged: (v) => c.setExport(stems: v),
           ),
@@ -1725,6 +1750,8 @@ class _LevelSlider extends StatefulWidget {
     this.min = -12,
     this.max = 6,
     this.format,
+    this.on = true,
+    this.onToggle,
   });
   final String label;
   final Color color;
@@ -1732,6 +1759,10 @@ class _LevelSlider extends StatefulWidget {
   final ValueChanged<double> onChanged;
   final double min, max;
   final String Function(double value)? format;
+
+  /// Whether the lane plays (with [onToggle], a switch turns it off).
+  final bool on;
+  final ValueChanged<bool>? onToggle;
 
   @override
   State<_LevelSlider> createState() => _LevelSliderState();
@@ -1747,13 +1778,34 @@ class _LevelSliderState extends State<_LevelSlider> {
       height: 28,
       child: Row(
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
-          ),
+          if (widget.onToggle == null)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+            )
+          else
+            Tooltip(
+              message: widget.on ? 'Playing — click to switch it off' : 'Off — click to switch it on',
+              child: InkWell(
+                onTap: () => widget.onToggle!(!widget.on),
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: widget.on ? widget.color : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: widget.color, width: 1.5),
+                  ),
+                ),
+              ),
+            ),
           const SizedBox(width: 8),
-          SizedBox(width: 56, child: Text(widget.label, style: const TextStyle(fontSize: 12))),
+          SizedBox(
+            width: 56,
+            child: Text(widget.label, style: TextStyle(fontSize: 12, color: widget.on ? null : AppColors.faint)),
+          ),
           Expanded(
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(activeTrackColor: widget.color),
@@ -1761,7 +1813,7 @@ class _LevelSliderState extends State<_LevelSlider> {
                 value: v,
                 min: widget.min,
                 max: widget.max,
-                onChanged: (x) => setState(() => _drag = x),
+                onChanged: widget.on ? (x) => setState(() => _drag = x) : null,
                 onChangeEnd: (x) {
                   setState(() => _drag = null);
                   widget.onChanged(x);

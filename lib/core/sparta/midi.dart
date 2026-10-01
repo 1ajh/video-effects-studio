@@ -256,9 +256,10 @@ class MidiFile {
   // Sparta exports
   // ---------------------------------------------------------------------------
 
-  /// The remix chart, one track per lane: the pitch lane at the base's
-  /// root key plus its semitones, chorus words on C4, C#4… (1, 2, 3…),
-  /// percussion on GM drum keys, the quote on C5.
+  /// The remix chart, one track per lane: the pitch and pad lanes at the
+  /// base's root key plus their semitones, the bass two octaves lower, chorus
+  /// words on C4, C#4… (1, 2, 3…), percussion on GM drum keys, the quote on
+  /// C5.
   static MidiFile fromChart(SpartaBase base) {
     const ppq = 480;
     int t(double beats) => (beats * ppq).round();
@@ -270,7 +271,9 @@ class MidiFile {
       final lane = base.lane(role);
       if (lane.isEmpty) continue;
       int key(ChartNote n) => switch (role) {
-        SampleRole.pitch => base.rootKey + n.semitone,
+        SampleRole.pitch || SampleRole.pad => base.rootKey + n.semitone,
+        // The bass sample sits two octaves under the key's root.
+        SampleRole.bass => base.rootKey - 24 + n.semitone,
         SampleRole.word => 60 + math.max(0, slots.indexOf(n.slot)),
         _ => drumKeys[role]!,
       };
@@ -302,6 +305,15 @@ class MidiFile {
           ),
       ]),
     );
+    for (final (name, notes) in [('Bass', tr.bass), ('Chords', tr.chords)]) {
+      if (notes.isEmpty) continue;
+      file.tracks.add(
+        MidiTrack(name, [
+          for (final h in notes)
+            MidiNote(t(h.beat), math.max(1, t(h.length)), (tr.rootKey + h.semitone).clamp(0, 127), 100),
+        ]),
+      );
+    }
     for (final (role, key) in const [(SampleRole.kick, 36), (SampleRole.snare, 38), (SampleRole.hat, 42)]) {
       final beats = tr.drums(role);
       if (beats.isEmpty) continue;

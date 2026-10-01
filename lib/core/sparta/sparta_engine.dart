@@ -456,8 +456,8 @@ class SpartaEngine {
             sources[(e.key, i)] = VisualSource(
               path: s.sourcePath,
               hasVideo: sourceHasVideo[s.sourcePath] ?? false,
-              start: s.candidate.start,
-              duration: math.max(s.naturalSeconds, s.candidate.duration),
+              start: s.candidate.start + s.lead,
+              duration: math.max(s.naturalSeconds, s.candidate.duration - s.lead),
             );
           }
         }

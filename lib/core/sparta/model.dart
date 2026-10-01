@@ -416,12 +416,18 @@ class SpokenLine {
 /// the whole word.
 String? wordKeyFor(String slot, Iterable<String> keys) {
   final available = keys.toSet();
-  final words = available.where((k) => RegExp(r'^\d+$').hasMatch(k)).length;
+  // The line's words in order (a word that couldn't be cut leaves a gap:
+  // the pattern's word numbers go to the words there are).
+  final plain = [
+    for (final k in available)
+      if (RegExp(r'^\d+$').hasMatch(k)) int.parse(k),
+  ]..sort();
+  final words = plain.length;
   if (words == 0) return null;
   final m = RegExp(r'^(\d+)([A-Z]?)$').firstMatch(slot);
-  if (m == null) return '1';
+  if (m == null) return '${plain.first}';
   final n = int.parse(m.group(1)!);
-  final idx = n == 0 ? words : (n - 1) % words + 1;
+  final idx = plain[n == 0 ? words - 1 : (n - 1) % words];
   final letter = m.group(2)!;
   if (letter.isEmpty) return '$idx';
   if (available.contains('$idx$letter')) return '$idx$letter';

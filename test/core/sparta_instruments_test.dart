@@ -99,6 +99,21 @@ void main() {
       expect(Charter.fitToChords(twisted, 0, 8, 8), 0);
     });
 
+    test('a long intro plays the chorus after the quote; a short one only the quote', () {
+      BaseTranscription intro(double bars) => BaseTranscription(
+        bpm: 140,
+        rootKey: 62,
+        lengthBeats: bars * 4 + 16,
+        sections: [Section(SectionKind.intro, 0, bars * 4), Section(SectionKind.chorus, bars * 4, bars * 4 + 16)],
+      );
+      final long = Charter().write(intro(16), quoteBeats: 10);
+      final words = long.where((n) => n.role == SampleRole.word && n.beat < 64).toList();
+      expect(words, isNotEmpty);
+      expect(words.first.beat, 12, reason: 'from the bar after the quote');
+      final short = Charter().write(intro(4), quoteBeats: 10);
+      expect(short.where((n) => n.role == SampleRole.word && n.beat < 16), isEmpty);
+    });
+
     test('awesomeness sections keep the chorus words', () {
       final t = BaseTranscription(
         bpm: 140,

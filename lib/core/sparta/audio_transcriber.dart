@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../audio/fft.dart';
 import 'audio_base.dart';
+import 'audio_sections.dart';
 import 'chart_import.dart';
 import 'model.dart';
 import 'pattern_match.dart';
@@ -35,7 +36,18 @@ class AudioTranscriber {
     if (x == null || bands == null) throw ArgumentError('The analysis kept no signal to transcribe.');
     final sr = AudioBaseAnalyzer.sampleRate;
     final stepSec = 60 / a.bpm / 4;
-    final steps = a.bars * 16;
+    // Where the music ends, its sections and chords (the ring-out after the
+    // last bar is left out: nothing plays over it).
+    final structure = AudioSectioner().analyze(
+      x,
+      sr,
+      bpm: a.bpm,
+      firstDownbeat: a.firstDownbeat,
+      bars: a.bars,
+      rootPc: a.tonicPc,
+    );
+    final bars = math.max(1, math.min(a.bars, structure.musicBars));
+    final steps = bars * 16;
     double at(int s) => a.firstDownbeat + s * stepSec;
 
     final fft = Fft(_fftSize);
@@ -110,10 +122,10 @@ class AudioTranscriber {
 
     final matches = <({Pattern p, int bar, int offset, double score})>[];
     var bar = 0;
-    while (bar < a.bars) {
+    while (bar < bars) {
       ({Pattern p, int bar, int offset, double score})? best;
       for (final p in _patterns) {
-        if (p.bars > 4 || bar + p.bars > a.bars) continue;
+        if (p.bars > 4 || bar + p.bars > bars) continue;
         final hs = p.looped(p.bars * 16.0);
         for (var o = 0; o < 12; o++) {
           var on = 0.0;
@@ -149,26 +161,33 @@ class AudioTranscriber {
 
     final guide = <GuideNote>[];
     final patterns = <int, String>{};
-    final covered = List<bool>.filled(a.bars, false);
+    final covered = List<bool>.filled(bars, false);
     for (final m in matches) {
       final shift = wrap(m.offset - rootPc);
       for (final h in m.p.looped(m.p.bars * 16.0)) {
         guide.add(GuideNote((m.bar * 16 + h.step) / 4, h.length / 4, h.semitone + shift));
       }
       patterns[m.bar] = m.p.id;
-      for (var b = m.bar; b < m.bar + m.p.bars && b < a.bars; b++) {
+      for (var b = m.bar; b < m.bar + m.p.bars && b < bars; b++) {
         covered[b] = true;
       }
     }
-    // Unexplained bars: clear pitched attacks, as heard.
+    // Chords, moved to the root found above.
+    final chordShift = wrap(a.tonicPc - rootPc);
+    final chords = [for (final c in structure.chords) c.copyWith(semitone: c.semitone + chordShift)];
+    // Unexplained bars: clear pitched attacks, as heard — unless the chords
+    // are known, when the wiki's patterns fitted to them sound far better than
+    // attacks guessed from a full mix.
     final tonal = Float64List(steps);
     for (var s = 0; s < steps; s++) {
       tonal[s] = rise[s].reduce(math.max);
     }
-    final raw = [
-      for (final s in _peaks(tonal, floor: typical * 2.5, relative: 0.5))
-        if (!covered[(s / 16).floor().clamp(0, a.bars - 1)]) s,
-    ];
+    final raw = chords.isNotEmpty
+        ? const <int>[]
+        : [
+            for (final s in _peaks(tonal, floor: typical * 2.5, relative: 0.5))
+              if (!covered[(s / 16).floor().clamp(0, bars - 1)]) s,
+          ];
     for (var i = 0; i < raw.length; i++) {
       final s = raw[i];
       final next = i + 1 < raw.length ? raw[i + 1] : s + 4;
@@ -190,23 +209,29 @@ class AudioTranscriber {
       ChartTrack(id: 'hat', name: 'Hat', notes: notes(drums[SampleRole.hat]!, 42), drumKit: true),
       ChartTrack(id: 'hit', name: 'Hits', notes: [for (final g in guide) RawNote(g.beat, g.length, 60 + g.semitone)]),
     ];
-    var sections = sectionsFromTracks(pseudo, a.bars, 4);
-    sections = _hint(sections, matches);
-    if (sections.isEmpty) sections = [Section(SectionKind.other, 0, a.bars * 4.0)];
+    var sections = structure.sections;
+    if (sections.isEmpty) {
+      // No recurring chorus to anchor on: label by how the parts play.
+      sections = _hint(sectionsFromTracks(pseudo, bars, 4), matches);
+    }
+    if (sections.isEmpty) sections = [Section(SectionKind.other, 0, bars * 4.0)];
 
-    final coverage = covered.where((c) => c).length / math.max(1, a.bars);
+    final coverage = covered.where((c) => c).length / math.max(1, bars);
     return BaseTranscription(
       bpm: a.bpm,
       rootKey: 60 + rootPc,
-      lengthBeats: a.bars * 4.0,
+      lengthBeats: bars * 4.0,
       sections: sections,
       hits: guide,
+      chords: chords,
       kick: [for (final s in drums[SampleRole.kick]!) s / 4],
       snare: [for (final s in drums[SampleRole.snare]!) s / 4],
       hat: [for (final s in drums[SampleRole.hat]!) s / 4],
       audioOffset: a.firstDownbeat,
       source: TranscriptionSource.audio,
-      confidence: (0.25 + 0.55 * coverage + 0.2 * a.tempoConfidence).clamp(0, 1).toDouble(),
+      confidence: (0.25 + 0.35 * coverage + (structure.sections.isEmpty ? 0 : 0.2) + 0.2 * a.tempoConfidence)
+          .clamp(0, 1)
+          .toDouble(),
       patterns: patterns,
       baseName: name,
     );

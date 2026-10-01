@@ -15,6 +15,7 @@ class ProcessedSample {
     required this.sourcePath,
     this.rootHz = 0,
     this.naturalSeconds = 0,
+    this.lead = 0,
   });
 
   final SampleRole role;
@@ -32,6 +33,10 @@ class ProcessedSample {
 
   /// Length of the original material before sustain.
   final double naturalSeconds;
+
+  /// Seconds trimmed off the front of the candidate (silence before the
+  /// first sound), so the pictures start where the sound does.
+  final double lead;
 
   static const sampleRate = 48000;
 }
@@ -241,7 +246,11 @@ class SampleEnhancer {
   }
 
   /// A chorus word: raw (not tuned), cleaned up, optionally Chorus Crisp.
-  ProcessedSample _word(SampleCandidate c, Float32List x, String src) {
+  ProcessedSample _word(SampleCandidate c, Float32List input, String src) {
+    // Starts on its first sound, so the word lands on the beat (a gap before
+    // it would make it late).
+    final lead = _leadingSilence(input, -32, 4);
+    final x = lead > 0 ? Float32List.fromList(input.sublist(lead)) : input;
     Biquad.highPass(sr.toDouble(), 70).process(x);
     var out = x;
     if (options.chorusCrisp) out = chorusCrisp(out, sr);
@@ -249,7 +258,28 @@ class SampleEnhancer {
     compress(out, sr, thresholdDb: -20, ratio: 3, attackMs: 2, releaseMs: 70);
     fade(out, sr, inMs: 1, outMs: 8);
     _normalize(out, 0.9);
-    return ProcessedSample(role: c.role, audio: out, candidate: c, sourcePath: src, naturalSeconds: x.length / sr);
+    return ProcessedSample(
+      role: c.role,
+      audio: out,
+      candidate: c,
+      sourcePath: src,
+      naturalSeconds: x.length / sr,
+      lead: lead / sr,
+    );
+  }
+
+  /// Samples of near-silence before the first sound ([db] under the peak),
+  /// keeping [padMs] before it; at most a third of the clip.
+  static int _leadingSilence(Float32List x, double db, double padMs) {
+    final p = _peak(x);
+    if (p < 1e-9) return 0;
+    final t = p * dbToGain(db);
+    var a = 0;
+    while (a < x.length && x[a].abs() < t) {
+      a++;
+    }
+    final cut = a - (padMs * sr / 1000).round();
+    return cut <= 0 ? 0 : math.min(cut, x.length ~/ 3);
   }
 
   ProcessedSample _kick(SampleCandidate c, Float32List x, String src) {

@@ -338,15 +338,26 @@ class Arranger {
     _eq(quote, [Biquad.highPass(sr, 80)]);
     compress(quote, sampleRate, channels: 2, thresholdDb: -22, ratio: 3, attackMs: 5, releaseMs: 150, makeupDb: 4);
 
-    // Shared reverb for the tonal samples.
+    // Reverb for the tonal samples (the pads get their own, bigger room, so
+    // every stem keeps its own tail).
     if (settings.reverb > 0) {
       final send = Float32List(frames * 2);
       for (var i = 0; i < send.length; i++) {
-        send[i] = (pitch[i] + words[i] * 0.5 + pads[i] * 1.5) * settings.reverb;
+        send[i] = (pitch[i] + words[i] * 0.5) * settings.reverb;
       }
       final wet = Reverb(sampleRate: sampleRate, room: 0.7, damp: 0.45).process(send);
       for (var i = 0; i < wet.length; i++) {
         pitch[i] += wet[i] * 3;
+      }
+      if (samples[SampleRole.pad]?.isNotEmpty ?? false) {
+        final padSend = Float32List(frames * 2);
+        for (var i = 0; i < padSend.length; i++) {
+          padSend[i] = pads[i] * settings.reverb * 1.5;
+        }
+        final padWet = Reverb(sampleRate: sampleRate, room: 0.85, damp: 0.5).process(padSend);
+        for (var i = 0; i < padWet.length; i++) {
+          pads[i] += padWet[i] * 3;
+        }
       }
     }
 

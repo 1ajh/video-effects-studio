@@ -73,8 +73,11 @@ class _SectionRow extends StatelessWidget {
     final choice = c.choiceAt(index);
     final charter = Charter();
     final defaultWords = charter.defaultWords(s.kind);
+    final longIntro = s.kind == SectionKind.intro && s.lengthBeats >= 8 * t.beatsPerBar;
     final words = choice.words == null
-        ? (defaultWords == null ? 'No words' : 'Words: ${defaultWords.name}')
+        ? (defaultWords == null
+              ? (longIntro ? 'Quote, then the chorus' : (s.kind == SectionKind.intro ? 'Quote' : 'No words'))
+              : 'Words: ${defaultWords.name}')
         : choice.words!.isEmpty
         ? 'No words'
         : 'Words: ${charter.pattern(PatternKind.words, choice.words!)?.name ?? 'custom'}';
@@ -179,6 +182,21 @@ class _SectionRow extends StatelessWidget {
                   edited: choice.pitch != null,
                   onTap: () => _pickPitch(context, index, s),
                 ),
+                if (t.bass.isNotEmpty || t.chords.isNotEmpty)
+                  _ToggleChip(
+                    role: SampleRole.bass,
+                    on: choice.bass ?? true,
+                    edited: choice.bass != null,
+                    onTap: () => c.setChoice(index, choice.copyWith(bass: !(choice.bass ?? true))),
+                  ),
+                if (t.chords.isNotEmpty)
+                  _ToggleChip(
+                    role: SampleRole.pad,
+                    on: choice.pads ?? Charter.padsByDefault(s.kind),
+                    edited: choice.pads != null,
+                    onTap: () =>
+                        c.setChoice(index, choice.copyWith(pads: !(choice.pads ?? Charter.padsByDefault(s.kind)))),
+                  ),
               ],
             ),
           ),
@@ -260,6 +278,50 @@ class _ChoiceChip extends StatelessWidget {
   }
 }
 
+/// An instrument switched on or off in one section.
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({required this.role, required this.on, required this.edited, required this.onTap});
+  final SampleRole role;
+  final bool on;
+  final bool edited;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = laneColor(role);
+    return Tooltip(
+      message: '${role.label} ${on ? 'play' : "don't play"} here — click to switch',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+          decoration: BoxDecoration(
+            color: on ? color.withValues(alpha: edited ? 0.22 : 0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: on ? (edited ? 0.9 : 0.4) : 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(on ? laneIcon(role) : Icons.block, size: 13, color: on ? color : AppColors.faint),
+              const SizedBox(width: 5),
+              Text(
+                role.label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: on ? null : AppColors.faint,
+                  decoration: on ? null : TextDecoration.lineThrough,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Fixes to the base's transcription in one section.
 class _FixMenu extends StatelessWidget {
   const _FixMenu({required this.index});
@@ -327,7 +389,9 @@ Future<void> _pickWords(BuildContext context, int i, Section s) async {
       kind: PatternKind.words,
       patterns: charter.wordChoices(s.kind),
       defaultLabel: charter.defaultWords(s.kind) == null
-          ? 'Default: no words here'
+          ? (s.kind == SectionKind.intro
+                ? 'Default: the quote (a long intro plays the chorus after it)'
+                : 'Default: no words here')
           : 'Default: ${charter.defaultWords(s.kind)!.name}',
       noneLabel: 'No words here',
       current: c.choiceAt(i).words,
