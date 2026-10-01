@@ -330,7 +330,7 @@ class SpartaEngine {
     double? offset,
   ) async {
     final t = await Isolate.run(() => ProjectTranscriber().transcribe(project, uses: uses));
-    if (offset != null) return t.copyWith(audioOffset: offset);
+    if (offset != null) return endWithAudio(t.copyWith(audioOffset: offset), audio);
     // Line the base's own drums (else everything it plays) up with the audio.
     final drums = project.drumHits();
     final beats = [for (final l in drums.values) ...l];
@@ -345,7 +345,25 @@ class SpartaEngine {
     final found = await Isolate.run(
       () => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds, bpm: t.bpm),
     );
-    return t.copyWith(audioOffset: found);
+    return endWithAudio(t.copyWith(audioOffset: found), audio);
+  }
+
+  /// A render can stop before its project does (a cut, an older version):
+  /// the base ends with its audio's last bar, so nothing plays over silence.
+  static BaseTranscription endWithAudio(BaseTranscription t, AudioBuffer audio) {
+    final end = AudioBaseAnalyzer.lastSound(audio);
+    if (end == null) return t;
+    final bar = t.beatsPerBar.toDouble();
+    // A ring-out under a quarter of a bar doesn't make another bar.
+    final beats = (((end - t.audioOffset) * t.bpm / 60) / bar - 0.25).ceil() * bar;
+    if (beats >= t.lengthBeats - 1e-6 || beats < bar) return t;
+    return t.copyWith(
+      lengthBeats: beats,
+      sections: [
+        for (final s in t.sections)
+          if (s.startBeat < beats - 1e-6) s.endBeat > beats ? Section(s.kind, s.startBeat, beats, name: s.name) : s,
+      ],
+    );
   }
 
   Future<(BaseTranscription, AudioBaseAnalysis)> _fromAudio(

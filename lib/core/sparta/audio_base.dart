@@ -472,6 +472,31 @@ class AudioBaseAnalyzer {
   }
 
   /// Time of the first sound above −40 dB relative to the loudest 10 ms.
+  /// Seconds where the audio's last sound ends (a 10 ms block within 40 dB
+  /// of the loudest), or null for silence.
+  static double? lastSound(AudioBuffer audio) {
+    final mono = audio.mono();
+    final x = mono.data, rate = mono.sampleRate;
+    final block = rate ~/ 100;
+    final n = block == 0 ? 0 : x.length ~/ block;
+    if (n == 0) return null;
+    final rms = Float64List(n);
+    var peak = 0.0;
+    for (var b = 0; b < n; b++) {
+      var e = 0.0;
+      for (var i = b * block; i < (b + 1) * block; i++) {
+        e += x[i] * x[i];
+      }
+      rms[b] = math.sqrt(e / block);
+      peak = math.max(peak, rms[b]);
+    }
+    if (peak <= 0) return null;
+    for (var b = n - 1; b >= 0; b--) {
+      if (rms[b] > peak * 0.01) return (b + 1) * block / rate;
+    }
+    return null;
+  }
+
   static double? _firstSound(Float32List x) {
     const block = sampleRate ~/ 100;
     final n = x.length ~/ block;

@@ -1,12 +1,16 @@
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_effects_studio/core/audio/audio_buffer.dart';
 import 'package:video_effects_studio/core/sparta/arranger.dart';
 import 'package:video_effects_studio/core/sparta/base_library.dart';
 import 'package:video_effects_studio/core/sparta/chart_import.dart';
 import 'package:video_effects_studio/core/sparta/charter.dart';
 import 'package:video_effects_studio/core/sparta/model.dart';
 import 'package:video_effects_studio/core/sparta/project_transcriber.dart';
+import 'package:video_effects_studio/core/sparta/sparta_engine.dart';
 import 'package:video_effects_studio/core/sparta/transcription.dart';
 import 'package:video_effects_studio/core/sparta/visual_renderer.dart';
 
@@ -213,6 +217,31 @@ void main() {
       // One held chord per change, lasting until the next (D from 0.5 to 2.5).
       expect(held.where((n) => n.semitone == 0).first.length, closeTo(2, 1e-9));
       expect(held.map((n) => n.beat).toSet().length, lessThanOrEqualTo(17));
+    });
+    test('a project ends with its render when the render is shorter', () {
+      // 16 bars at 120 BPM; the render plays 10 bars from 0.5 s, then silence.
+      final t = BaseTranscription(
+        bpm: 120,
+        rootKey: 62,
+        lengthBeats: 64,
+        audioOffset: 0.5,
+        sections: const [
+          Section(SectionKind.intro, 0, 16),
+          Section(SectionKind.chorus, 16, 48),
+          Section(SectionKind.madness, 48, 64),
+        ],
+      );
+      AudioBuffer render(double musicSeconds) => AudioBuffer(
+        Float32List.fromList([
+          for (var i = 0; i < 34 * 8000; i++)
+            i >= 4000 && i < (0.5 + musicSeconds) * 8000 ? 0.5 * math.sin(i * 0.3) : 0,
+        ]),
+        sampleRate: 8000,
+      );
+      final cut = SpartaEngine.endWithAudio(t, render(20));
+      expect(cut.lengthBeats, 40);
+      expect(cut.sections.map((s) => (s.kind, s.endBeat)), [(SectionKind.intro, 16), (SectionKind.chorus, 40)]);
+      expect(SpartaEngine.endWithAudio(t, render(33)).lengthBeats, 64, reason: 'a full render changes nothing');
     });
   });
 
