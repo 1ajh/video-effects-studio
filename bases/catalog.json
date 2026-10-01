@@ -14,40 +14,13 @@
    "transcription": "transcriptions/keaton-sparta-extended.json"
   },
   {
-   "id": "flp-archive/deraidos-collab-sparta-eir-base",
-   "name": "(Collab) Sparta Eir Base",
-   "maker": "Deraidos",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Deraidos/%28Collab%29%20Sparta%20Eir%20Base/Eir_base_7%20-%20Intro%20Guitar.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Deraidos/%28Collab%29%20Sparta%20Eir%20Base/Eir_base_7.flp"
-  },
-  {
-   "id": "flp-archive/enforch-sparta-blend-s-v2-base",
-   "name": "Sparta Blend S V2 Base",
+   "id": "flp-archive/enforch-sparta-announcement-base",
+   "name": "Sparta Announcement Base",
    "maker": "enforch",
    "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Blend%20S%20V2%20Base/%5BFiller%5D%20Blend%20S%20Sparta%20Remix%20%28Filtered%20Instrumental%29%20%28UVR%29.mp3",
+   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Announcement%20Base/announcement.mp3",
    "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Blend%20S%20V2%20Base/blend_s_2.flp"
-  },
-  {
-   "id": "flp-archive/hypercorzo-mementos-sparta-convoice-cme-base",
-   "name": "Sparta Convoice CME Base",
-   "maker": "HyperCorzo (Mementos)",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/HyperCorzo%20%28Mementos%29/Sparta%20Convoice%20CME%20Base/chorus-voxmix.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/HyperCorzo%20%28Mementos%29/Sparta%20Convoice%20CME%20Base/convoice%20cme.flp"
-  },
-  {
-   "id": "flp-archive/curtistry-sparta-crash-cte-base",
-   "name": "Sparta Crash CTE Base",
-   "maker": "CurtisTRY",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/CurtisTRY/Sparta%20Crash%20CTE%20Base/CrashBaseKick.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/CurtisTRY/Sparta%20Crash%20CTE%20Base/crashCTE.flp"
+   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Announcement%20Base/zafiro.flp"
   },
   {
    "id": "flp-archive/djcubixtronmusic-sparta-cubes-mix-djctme",
@@ -66,60 +39,6 @@
    "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DangoOlreala/Sparta%20Dango%20DOE%20Base/Sparta%20Dango%20Mix%20Remastered_2.mp3",
    "page": "https://archive.org/details/sparta-archive-flp-remixes",
    "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DangoOlreala/Sparta%20Dango%20DOE%20Base/Sparta%20Dango%20Mix%20Remastered_2.flp"
-  },
-  {
-   "id": "flp-archive/bree-sparta-dinner-base",
-   "name": "Sparta Dinner Base",
-   "maker": "Bree",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Bree/Sparta%20Dinner%20Base/sparta%20extended_2.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Bree/Sparta%20Dinner%20Base/classic%20styled%20thingy.flp"
-  },
-  {
-   "id": "flp-archive/apathy-sparta-down-base",
-   "name": "Sparta Down Base",
-   "maker": "Apathy",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Apathy/Sparta%20Down%20Base/Sparta_Down_Base%20acnl%20mod%201.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Apathy/Sparta%20Down%20Base/Sparta_Down_Base.flp"
-  },
-  {
-   "id": "flp-archive/enforch-sparta-duelo-maestro-base-reupload",
-   "name": "Sparta Duelo Maestro Base Reupload",
-   "maker": "enforch",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Duelo%20Maestro%20Base%20Reupload/Duelo_Maestro_Base_Intro.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Duelo%20Maestro%20Base%20Reupload/Sparta%20Duelo%20Maestro%20Base.flp"
-  },
-  {
-   "id": "flp-archive/durph-sparta-emanation-dfe-v3-5-base",
-   "name": "Sparta Emanation DFE V3.5 Base",
-   "maker": "Durph",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Emanation%20DFE%20V3.5%20Base/Korg-N1R-Rave-Mix-C3.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Emanation%20DFE%20V3.5%20Base/18emanationdfev3.5.flp"
-  },
-  {
-   "id": "flp-archive/delta-sparta-etheral-dle-base",
-   "name": "Sparta Etheral DLE Base",
-   "maker": "Delta",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Delta/Sparta%20Etheral%20DLE%20Base/Mixed%20Beat%201.ogg",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Delta/Sparta%20Etheral%20DLE%20Base/Etheral%20DLE%20Maybe.flp"
-  },
-  {
-   "id": "flp-archive/apathy-sparta-exploits-base",
-   "name": "Sparta Exploits Base",
-   "maker": "Apathy",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Apathy/Sparta%20Exploits%20Base/Exploits_Base%20acnl%20mod%201.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Apathy/Sparta%20Exploits%20Base/Exploits_Base.flp"
   },
   {
    "id": "flp-archive/durph-sparta-gya-dfe-v2-base",
@@ -149,17 +68,8 @@
    "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/CJ/Sparta%20Jolly%20Rancher%20Base%20SCE/Sparta%20Jolly%20Rancher%20Base%20SCE.flp"
   },
   {
-   "id": "flp-archive/jad-sparta-jug-v2-jae-base",
-   "name": "Sparta Jug V2 JAE Base",
-   "maker": "Jad",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Jad/Sparta%20Jug%20V2%20JAE%20Base/MIXO_A_3%28L%29ogg.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Jad/Sparta%20Jug%20V2%20JAE%20Base/Sparta%20Jug%20V2%20JAE%20Base.flp"
-  },
-  {
    "id": "flp-archive/dalton-stephens-sparta-keel-base",
-   "name": "Sparta Keel Base ",
+   "name": "Sparta Keel Base",
    "maker": "Dalton Stephens",
    "collection": "Sparta Archive FLP Remixes",
    "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Dalton%20Stephens/Sparta%20Keel%20Base%20/Sparta%20Keel%20BasE.mp3",
@@ -174,33 +84,6 @@
    "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/SiriusJosi/Sparta%20Kinetic%20Mix/Sparta%20Kinetic%20Mix%20EDT.mp3",
    "page": "https://archive.org/details/sparta-archive-flp-remixes",
    "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/SiriusJosi/Sparta%20Kinetic%20Mix/Sparta_Kinetic_Mix_6.flp"
-  },
-  {
-   "id": "flp-archive/durph-sparta-laureate-base",
-   "name": "Sparta Laureate Base",
-   "maker": "Durph",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Laureate%20Base/Korg-N1R-Rave-Mix-C3.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Laureate%20Base/Sparta_Laureate_Base.flp"
-  },
-  {
-   "id": "flp-archive/enforch-sparta-moonlight-v2-base",
-   "name": "Sparta Moonlight V2 Base",
-   "maker": "enforch",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Moonlight%20V2%20Base/itpedia%20-%20Sparta%20Moonlight%20Remix.mp3",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/enforch/Sparta%20Moonlight%20V2%20Base/itpedia.flp"
-  },
-  {
-   "id": "flp-archive/davidholandaspartan-sparta-neutrino-v2-base",
-   "name": "Sparta Neutrino V2 Base",
-   "maker": "DavidHolandaSpartan",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Neutrino%20V2%20Base/Sparta%20Neutrino%20Base.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Neutrino%20V2%20Base/Sparta%20Neutrino%20V2%20Base.flp"
   },
   {
    "id": "flp-archive/dangoolreala-sparta-ognad-base",
@@ -221,15 +104,6 @@
    "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Overload%20V2%20Base/Sparta%20Overload%20V2%20Base.flp"
   },
   {
-   "id": "flp-archive/djcubixtronmusic-sparta-psithurism-djctme-base",
-   "name": "Sparta Psithurism DJCTME Base",
-   "maker": "DJCubixTronMusic",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DJCubixTronMusic/Sparta%20Psithurism%20DJCTME%20Base/Sparta_Psithurism_DJCTME_Base%20acnl%20mod%201.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DJCubixTronMusic/Sparta%20Psithurism%20DJCTME%20Base/Sparta_Psithurism_DJCTME_Base.flp"
-  },
-  {
    "id": "flp-archive/davidholandaspartan-sparta-pure-heartbeat-dhse-base",
    "name": "Sparta Pure Heartbeat DHSE Base",
    "maker": "DavidHolandaSpartan",
@@ -239,42 +113,6 @@
    "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Pure%20Heartbeat%20DHSE%20Base/Sparta%20Pure%20Heartbeat%20DHSE%20Base.flp"
   },
   {
-   "id": "flp-archive/davidholandaspartan-sparta-reef-base",
-   "name": "Sparta Reef Base",
-   "maker": "DavidHolandaSpartan",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Reef%20Base/Sonic%203%20Launch%20Base%20Snare.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Reef%20Base/Sparta%20Reef%20Base.flp"
-  },
-  {
-   "id": "flp-archive/durph-sparta-shampoo-base",
-   "name": "Sparta Shampoo Base",
-   "maker": "Durph",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Shampoo%20Base/VDUB1%20ML%20140BPM%208%20Loop%20Mix.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Shampoo%20Base/15Shampoo.flp"
-  },
-  {
-   "id": "flp-archive/anzu-sparta-shutter-base",
-   "name": "Sparta Shutter Base",
-   "maker": "anzu",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/anzu/Sparta%20Shutter%20Base/Korg-N1R-Rave-Mix-C3.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/anzu/Sparta%20Shutter%20Base/TITLED3.flp"
-  },
-  {
-   "id": "flp-archive/durph-sparta-toon-base",
-   "name": "Sparta Toon Base",
-   "maker": "Durph",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Toon%20Base/Sparta%20Cubit%20Mix.mp3",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Durph/Sparta%20Toon%20Base/36toony.flp"
-  },
-  {
    "id": "flp-archive/davidholandaspartan-sparta-victoriya-v2-base",
    "name": "Sparta Victoriya V2 Base",
    "maker": "DavidHolandaSpartan",
@@ -282,15 +120,6 @@
    "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Victoriya%20V2%20Base/Sparta%20Victoriya%20Base.wav",
    "page": "https://archive.org/details/sparta-archive-flp-remixes",
    "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/DavidHolandaSpartan/Sparta%20Victoriya%20V2%20Base/Sparta%20Victoriya%20V2%20Base.flp"
-  },
-  {
-   "id": "flp-archive/azura-sparta-xero-base",
-   "name": "Sparta Xero Base",
-   "maker": "Azura",
-   "collection": "Sparta Archive FLP Remixes",
-   "audio": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Azura/Sparta%20Xero%20Base/lattabase%20idk%20-%202022-Jul-16_2.wav",
-   "page": "https://archive.org/details/sparta-archive-flp-remixes",
-   "flp": "https://archive.org/download/sparta-archive-flp-remixes/Sparta%20Archive%20FLP%20Remixes.zip/Azura/Sparta%20Xero%20Base/lattabase%20idk.flp"
   },
   {
    "id": "remake-sparta-windows-xp-v2-remix-base/remake-sparta-windows-xp-v2-remix-base-mp3",

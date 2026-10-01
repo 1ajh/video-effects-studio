@@ -6,8 +6,8 @@ Sources (each base keeps its maker's credit and a link to where it lives):
   * archive.org base collections (HADES BLACK, Francex, "Some Sparta Bases
     Archive") and single-base uploads.
   * The Sparta Archive FLP Remixes zip on archive.org: bases whose folder
-    holds both the FL Studio project and its audio render, so the app reads
-    the base's notes exactly from the project.
+    holds both the FL Studio project and its audio render (FLP_RENDERS), so
+    the app reads the base's notes exactly from the project.
 
 Curated transcriptions in bases/transcriptions/<id>.json are linked in.
 
@@ -189,8 +189,30 @@ def single_uploads():
     return out
 
 
+# Folders of the FLP archive that hold a render of their project. Most
+# folders hold only the project's samples, or another song used as a
+# reference (Keaton's Sparta Extended base, a remix, a song the base
+# samples), so each pair here was checked by analysis: the render's tempo
+# and length match the project's, it lines up on the project's beats, and
+# its bass plays the project's bass notes.
+FLP_RENDERS = {
+    'CJ/Sparta Jolly Rancher Base SCE': 'Copy_Sparta_Jolly_Rancher_Base.mp3',
+    'DJCubixTronMusic/Sparta Cubes Mix DJCTME': 'Sparta Cubes Mix V2.mp3',
+    'Dalton Stephens/Sparta Hugglebeat Base': 'hb base.mp3',
+    'Dalton Stephens/Sparta Keel Base ': 'Sparta Keel BasE.mp3',
+    'DangoOlreala/Sparta Dango DOE Base': 'Sparta Dango Mix Remastered_2.mp3',
+    'DangoOlreala/Sparta Ognad Base': 'Sparta Ognad Base.mp3',
+    'DavidHolandaSpartan/Sparta Overload V2 Base': 'Sparta Overload Base.mp3',
+    'DavidHolandaSpartan/Sparta Pure Heartbeat DHSE Base': 'Sparta Pure Heartbeat Remix.mp3',
+    'DavidHolandaSpartan/Sparta Victoriya V2 Base': 'Sparta Victoriya Base.wav',
+    'Durph/Sparta GYA DFE V2 Base': 'Sparta GYA Base.wav',
+    'SiriusJosi/Sparta Kinetic Mix': 'Sparta Kinetic Mix EDT.mp3',
+    'enforch/Sparta Announcement Base': 'announcement.mp3',
+}
+
+
 def flp_pairs():
-    """Folders of the FLP archive with both a project and its audio render."""
+    """FLP archive bases with both a project and a checked render (FLP_RENDERS)."""
     listing = get(f'https://archive.org/download/{FLP_ZIP_ITEM}/{urllib.parse.quote(FLP_ZIP)}/').decode('utf-8', 'replace')
     paths = [urllib.parse.unquote(m) for m in re.findall(r'href="//archive\.org/download/[^"]+\.zip/([^"]+)"', listing)]
     folders = {}
@@ -198,18 +220,17 @@ def flp_pairs():
         folders.setdefault(os.path.dirname(p), []).append(p)
     out = []
     zip_url = f'https://archive.org/download/{FLP_ZIP_ITEM}/{urllib.parse.quote(FLP_ZIP)}/'
-    for folder, files in sorted(folders.items()):
-        flps = [f for f in files if f.lower().endswith('.flp')]
-        audio = [f for f in files if f.lower().endswith(AUDIO)]
-        # A render is usually named after the base; skip folders whose only audio are samples.
-        renders = [a for a in audio if re.search(r'sparta|base|mix|remix', os.path.basename(a), re.I)]
-        if not flps or not renders:
+    for folder, render in sorted(FLP_RENDERS.items()):
+        files = folders.get(folder, [])
+        flps = sorted(f for f in files if f.lower().endswith('.flp'))
+        audio = f'{folder}/{render}'
+        if not flps or audio not in files:
+            print(f'warning: {folder} no longer has its project and render')
             continue
         maker = folder.split('/')[0]
-        name = os.path.basename(folder) or nice_name(renders[0])
-        out.append(entry(f'flp-archive/{slug(folder)}', name, maker, zip_url + urllib.parse.quote(renders[0]),
-                         f'https://archive.org/details/{FLP_ZIP_ITEM}', 'Sparta Archive FLP Remixes',
-                         flp=zip_url + urllib.parse.quote(flps[0])))
+        out.append(entry(f'flp-archive/{slug(folder)}', os.path.basename(folder).strip(), maker,
+                         zip_url + urllib.parse.quote(audio), f'https://archive.org/details/{FLP_ZIP_ITEM}',
+                         'Sparta Archive FLP Remixes', flp=zip_url + urllib.parse.quote(flps[0])))
     return out
 
 
