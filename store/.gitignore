@@ -1,0 +1,3 @@
+# Orders and the signing key live here on the server: never commit them.
+data/
+node_modules/
