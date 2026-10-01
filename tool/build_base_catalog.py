@@ -13,6 +13,7 @@ Curated transcriptions in bases/transcriptions/<id>.json are linked in.
 
     python3 tool/build_base_catalog.py
 """
+import datetime
 import html
 import json
 import os
@@ -250,7 +251,8 @@ def main():
     unique.sort(key=lambda b: (not b.get('featured'), 'flp' not in b, b['name'].lower()))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'w') as f:
-        json.dump({'version': 1, 'bases': unique}, f, indent=1, ensure_ascii=False)
+        json.dump({'version': 1, 'updated': datetime.date.today().isoformat(), 'bases': unique}, f, indent=1,
+                  ensure_ascii=False)
         f.write('\n')
     print(f'{len(unique)} bases written to {OUT}')
 

@@ -76,16 +76,31 @@ class CatalogBase {
 }
 
 class BaseCatalog {
-  BaseCatalog(this.bases, {this.version = 1});
+  BaseCatalog(this.bases, {this.version = 1, this.updated = ''});
 
   final List<CatalogBase> bases;
   final int version;
 
+  /// When the catalog was built (ISO date; empty in older catalogs).
+  final String updated;
+
   factory BaseCatalog.parse(String text) {
     final j = (jsonDecode(text) as Map).cast<String, Object?>();
-    return BaseCatalog([
-      for (final b in (j['bases'] as List?) ?? const []) CatalogBase.fromJson((b as Map).cast<String, Object?>()),
-    ], version: (j['version'] as num?)?.toInt() ?? 1);
+    return BaseCatalog(
+      [for (final b in (j['bases'] as List?) ?? const []) CatalogBase.fromJson((b as Map).cast<String, Object?>())],
+      version: (j['version'] as num?)?.toInt() ?? 1,
+      updated: j['updated'] as String? ?? '',
+    );
+  }
+
+  /// Whether this catalog is at least as new as [other]: by build date,
+  /// then format version, then size (a catalog can shrink when broken
+  /// entries are dropped, so size only breaks ties).
+  bool isAsNewAs(BaseCatalog other) {
+    final d = updated.compareTo(other.updated);
+    if (d != 0) return d > 0;
+    if (version != other.version) return version > other.version;
+    return bases.length >= other.bases.length;
   }
 
   CatalogBase? byId(String id) {
@@ -144,13 +159,14 @@ class BaseLibrary {
   File get _catalogCache => File(p.join(_dir, 'catalog.json'));
 
   /// The newest catalog available: the cached remote copy when it's newer
-  /// than [bundled], refreshed from the repository when [refresh] is set.
+  /// than [bundled], refreshed from the repository when [refresh] is set
+  /// (an older remote copy never replaces a newer one).
   Future<BaseCatalog> catalog(String bundled, {bool refresh = true}) async {
     var best = BaseCatalog.parse(bundled);
     try {
       if (await _catalogCache.exists()) {
         final cached = BaseCatalog.parse(await _catalogCache.readAsString());
-        if (cached.bases.length >= best.bases.length || cached.version > best.version) best = cached;
+        if (cached.isAsNewAs(best)) best = cached;
       }
     } catch (_) {
       // A corrupt cache is ignored and replaced below.
@@ -160,7 +176,7 @@ class BaseLibrary {
       final r = await _client.get(Uri.parse('${repoRaw}catalog.json')).timeout(const Duration(seconds: 8));
       if (r.statusCode == 200) {
         final remote = BaseCatalog.parse(r.body);
-        if (remote.bases.isNotEmpty) {
+        if (remote.bases.isNotEmpty && remote.isAsNewAs(best)) {
           await Directory(_dir).create(recursive: true);
           await _catalogCache.writeAsString(r.body);
           return remote;

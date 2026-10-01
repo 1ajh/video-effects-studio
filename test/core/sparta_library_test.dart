@@ -88,6 +88,28 @@ void main() {
     await dir.delete(recursive: true);
   });
 
+  test('a newer bundled catalog wins over an older cached or remote one, even with fewer bases', () async {
+    final dir = await Directory.systemTemp.createTemp('lib_test');
+    // An older build cached the old catalog (3 bases, no date); the repository still serves an older one.
+    await Directory('${dir.path}/bases').create(recursive: true);
+    File('${dir.path}/bases/catalog.json').writeAsStringSync(_catalog);
+    final older = (jsonDecode(_catalog) as Map)..['updated'] = '2026-09-01';
+    final lib = BaseLibrary(cacheDir: dir.path, client: MockClient((_) async => http.Response(jsonEncode(older), 200)));
+    final bundled = jsonEncode({
+      'version': 1,
+      'updated': '2026-10-01',
+      'bases': [(jsonDecode(_catalog) as Map)['bases'][0]],
+    });
+    expect((await lib.catalog(bundled, refresh: false)).bases, hasLength(1));
+    expect((await lib.catalog(bundled)).bases, hasLength(1));
+    final newer = BaseLibrary(
+      cacheDir: dir.path,
+      client: MockClient((_) async => http.Response(jsonEncode({...older, 'updated': '2026-11-01'}), 200)),
+    );
+    expect((await newer.catalog(bundled)).bases, hasLength(3), reason: 'a newer remote catalog is used');
+    await dir.delete(recursive: true);
+  });
+
   test('a fixed transcription is saved and sent as a prefilled issue', () async {
     final t = BaseTranscription(
       bpm: 140,
