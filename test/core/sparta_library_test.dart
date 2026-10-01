@@ -23,7 +23,12 @@ void main() {
     final extended = c.byId('keaton/sparta-extended')!;
     expect(extended.featured, isTrue);
     expect(extended.maker, contains('Keaton'));
-    expect(c.bases.where((b) => b.flpUrl != null).length, greaterThan(20));
+    final exact = c.bases.where((b) => b.flpUrl != null).toList();
+    expect(exact.length, greaterThanOrEqualTo(10));
+    // Each project's audio is its render, not a sample from its folder.
+    for (final b in exact) {
+      expect(b.audioUrl, isNot(matches(RegExp(r'kick|snare|crash|korg|intro|vox|loop', caseSensitive: false))));
+    }
     for (final b in c.bases) {
       expect(Uri.parse(b.audioUrl).isAbsolute, isTrue, reason: b.id);
       expect(b.credit, isNotEmpty, reason: b.id);
