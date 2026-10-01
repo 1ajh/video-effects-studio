@@ -181,7 +181,7 @@ void main() {
     test('the pads take the most sustained chord part and hold each chord', () {
       final t = ProjectTranscriber().transcribe(project());
       expect(t.chords.every((c) => c.length >= 2 - 1e-9), isTrue, reason: 'the sustained pad, not the stabs');
-      final s = Section(SectionKind.chorus, 0, 32);
+      const s = Section(SectionKind.chorus, 0, 32);
       final stabs = t.copyWith(
         chords: [
           for (var b = 0.5; b < 32; b += 1)
