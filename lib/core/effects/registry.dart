@@ -5,6 +5,7 @@ import 'library/color.dart';
 import 'library/distort_glitch.dart';
 import 'library/g_majors.dart';
 import 'library/logo_editing.dart';
+import 'library/popular.dart';
 import 'library/vocoders.dart';
 import 'library/voices.dart';
 
@@ -17,6 +18,7 @@ class EffectRegistry {
 
   static final List<Effect> builtIn = List.unmodifiable([
     ...logoEditingEffects,
+    ...popularEffects,
     ...gMajorEffects,
     ...vocoderEffects,
     ...vocodexEffects,
