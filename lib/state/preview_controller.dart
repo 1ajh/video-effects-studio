@@ -97,6 +97,7 @@ class PreviewController extends ChangeNotifier {
       settings.previewSeconds.toStringAsFixed(1),
       t.effect.id,
       t.params.toString(),
+      settings.output.loudness.name,
     ].join('|');
   }
 
@@ -155,6 +156,7 @@ class PreviewController extends ChangeNotifier {
         start: clip.trimStart,
         seconds: seconds,
         cacheDir: engine.cacheDir,
+        loudness: settings.output.loudness,
         cancel: cancel,
         onProgress: (f) {
           if (identical(cancel, _cancel)) {

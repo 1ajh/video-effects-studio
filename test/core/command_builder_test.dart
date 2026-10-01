@@ -146,4 +146,52 @@ void main() {
         int.parse(RegExp(r'textfile=t\.txt:expansion=none:fontsize=(\d+)').firstMatch(graph)!.group(1)!);
     expect(bigSize(long.graph), lessThan(bigSize(short.graph)));
   });
+
+  group('level matching', () {
+    test('the gain brings audio to the target; loud effects are only turned up', () {
+      expect(CommandBuilder.gainFor(-30, -9), 21);
+      expect(CommandBuilder.gainFor(-5, -9), -4);
+      expect(CommandBuilder.gainFor(-30, -9, loud: true), 21);
+      expect(CommandBuilder.gainFor(-5, -9, loud: true), isNull);
+      expect(CommandBuilder.gainFor(null, -9), isNull);
+      expect(CommandBuilder.gainFor(-20, null), isNull);
+      expect(CommandBuilder.gainFor(-80, -9), 30, reason: 'capped');
+    });
+
+    test("ebur128's summary is read; silence is ignored", () {
+      const log = '''
+[Parsed_ebur128_0 @ 0x1] Summary:
+
+  Integrated loudness:
+    I:         -21.4 LUFS
+    Threshold: -32.0 LUFS
+''';
+      expect(CommandBuilder.parseLoudness(log), -21.4);
+      expect(CommandBuilder.parseLoudness('    I:         -inf LUFS'), isNull);
+      expect(CommandBuilder.parseLoudness('    I:         -120.7 LUFS'), isNull);
+      expect(CommandBuilder.parseLoudness('nothing here'), isNull);
+    });
+
+    test('the measurement runs the effect audio alone; the gain adds a peak limiter', () {
+      final vocoder = EffectRegistry.builtIn.firstWhere((e) => e.id == 'purple_vocoder');
+      final r = RenderRequest(media: clip(), effect: vocoder, params: vocoder.defaults(), outputPath: '/o.mp4');
+      final m = CommandBuilder.measure(r);
+      expect(m.args, containsAllInOrder(['-f', 'null', '-']));
+      expect(argAfter(m.args, '-filter_complex'), contains('ebur128'));
+      expect(argAfter(m.args, '-filter_complex'), isNot(contains('alimiter')));
+      expect(argAfter(CommandBuilder.build(r).args, '-filter_complex'), isNot(contains('alimiter')));
+      final leveled = argAfter(CommandBuilder.build(r.withGain(12.5)).args, '-filter_complex');
+      expect(leveled, contains('volume=12.5dB'));
+      expect(leveled, contains('alimiter=limit=0.84'));
+      expect(argAfter(CommandBuilder.measure(r.withGain(3)).args, '-filter_complex'), contains('volume=3dB'));
+    });
+
+    test('the volume setting is remembered with the output settings', () {
+      expect(const OutputSettings().loudness, LoudnessTarget.loud);
+      expect(LoudnessTarget.loud.lufs, -9);
+      final back = OutputSettings.fromJson(const OutputSettings(loudness: LoudnessTarget.off).toJson());
+      expect(back.loudness, LoudnessTarget.off);
+      expect(OutputSettings.fromJson(const {'format': 'mp4'}).loudness, LoudnessTarget.loud);
+    });
+  });
 }

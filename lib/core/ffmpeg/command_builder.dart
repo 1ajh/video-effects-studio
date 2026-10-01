@@ -53,6 +53,7 @@ class RenderRequest {
     this.target = EncodeTarget.output,
     this.segment,
     this.previewMaxHeight = 480,
+    this.gainDb,
   });
 
   final MediaInfo media;
@@ -68,6 +69,24 @@ class RenderRequest {
   final EncodeTarget target;
   final SegmentFormat? segment;
   final int previewMaxHeight;
+
+  /// Level matching: gain applied after the effect, then a −1 dB peak
+  /// limiter (null: the audio is left as the effect makes it).
+  final double? gainDb;
+
+  RenderRequest withGain(double? db) => RenderRequest(
+    media: media,
+    effect: effect,
+    params: params,
+    outputPath: outputPath,
+    start: start,
+    end: end,
+    output: output,
+    target: target,
+    segment: segment,
+    previewMaxHeight: previewMaxHeight,
+    gainDb: db,
+  );
 
   double get inputSeconds {
     final limit = media.duration > 0 ? media.duration : double.infinity;
@@ -111,6 +130,59 @@ class CommandBuilder {
     w = math.max(2, w - w % 2);
     h = math.max(2, h - h % 2);
     return (w, h);
+  }
+
+  /// Peak ceiling of level-matched audio.
+  static const ceilingDb = -1.0;
+
+  /// The effect's audio alone (with [RenderRequest.gainDb] and the limiter
+  /// when set), measured by `ebur128` instead of encoded. See
+  /// [parseLoudness].
+  static BuiltCommand measure(RenderRequest r) {
+    final media = r.media;
+    final inputSeconds = r.inputSeconds;
+    final outSeconds = r.effect.outputSecondsFor(r.params, inputSeconds);
+    final env = FxEnv(width: 320, height: 240, fps: 25, duration: inputSeconds, sampleRate: sampleRate);
+    final g = FilterGraph();
+    var a = g.a('0:a:0', 'aresample=$sampleRate,aformat=sample_fmts=fltp:channel_layouts=stereo');
+    if (r.effect.audio != null) a = r.effect.audio!(g, a, r.effect.reader(r.params), env);
+    if (r.gainDb != null) a = g.a(a, _gainStage(r.gainDb!));
+    a = g.a(
+      a,
+      'aresample=$sampleRate,aformat=sample_fmts=fltp:sample_rates=$sampleRate:channel_layouts=stereo,'
+      'atrim=duration=${fmt(outSeconds)},ebur128=framelog=quiet',
+    );
+    return BuiltCommand([
+      '-hide_banner', '-nostdin', '-y', '-loglevel', 'info', '-nostats', //
+      if (r.start > 0) ...['-ss', fmt(r.start)],
+      '-t', fmt(inputSeconds), '-i', media.path,
+      '-filter_complex', g.build(), '-map', '[$a]', '-f', 'null', '-',
+    ], outSeconds);
+  }
+
+  /// Integrated loudness (LUFS) from a [measure] run's log; null when the
+  /// log has none or the audio is silent.
+  static double? parseLoudness(String log) {
+    final m = RegExp(r'^\s*I:\s*(-?[\d.]+|-inf)\s*LUFS', multiLine: true).allMatches(log).lastOrNull;
+    if (m == null) return null;
+    final v = double.tryParse(m.group(1)!);
+    return v == null || v < -70 ? null : v;
+  }
+
+  /// Gain, a gentle tanh soft clip (what lets speech get loud without
+  /// pumping) and a lookahead limiter holding peaks under [ceilingDb].
+  static String _gainStage(double db) =>
+      'volume=${fmt(db)}dB,asoftclip=type=tanh:threshold=0.8,'
+      'alimiter=limit=${fmt(math.pow(10, (ceilingDb - 0.5) / 20))}:attack=2:release=60:level=false:latency=true';
+
+  /// Gain that brings audio measured at [lufs] to [target] (null: leave it
+  /// alone). Effects that are loud on purpose are only ever turned up, and
+  /// keep their own sound (no limiter) when they're loud enough already.
+  static double? gainFor(double? lufs, double? target, {bool loud = false}) {
+    if (lufs == null || target == null) return null;
+    final g = (target - lufs).clamp(-24.0, 30.0);
+    if (loud && g <= 0.5) return null;
+    return g;
   }
 
   static BuiltCommand build(RenderRequest r) {
@@ -197,6 +269,8 @@ class CommandBuilder {
     if (needAudio) {
       var a = g.a(audioIn, 'aresample=$sampleRate,aformat=sample_fmts=fltp:channel_layouts=stereo');
       if (r.effect.audio != null && media.hasAudio) a = r.effect.audio!(g, a, reader, env);
+      final gain = r.gainDb;
+      if (gain != null && media.hasAudio) a = g.a(a, _gainStage(gain));
       final norm = 'aresample=$sampleRate,aformat=sample_fmts=fltp:sample_rates=$sampleRate:channel_layouts=stereo';
       // Always land exactly on the effect's length: echo/reverb tails would
       // otherwise outlast the picture, and short audio would end early.

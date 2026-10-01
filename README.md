@@ -46,7 +46,7 @@ The third mode (`Ctrl+3`) makes a Sparta remix the way the community does: a rea
 - **Video**: the classic box grid by default: one box per sample (pitch, each word, kick, snare, hat), sized automatically (2×2, 3×3 or 4×4), flipping horizontally on every hit, black between hits, and the quote full screen. Every one of those is an option (grid size; which boxes flip and how; black, dimmed or held last frame; quote full screen, in its own box or as a title card), plus Modern, Chaos/YTPMV and Minimal styles.
 - **Mix and export**: sampler transposition, choke per lane, a bus per lane, the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** master. Export the video (or MP3/WAV), plus optional **stems** (base, pitch, words, drums, quote) and **MIDI** (the sample chart and the base's notes).
 
-> Loud effects are loud on purpose: authentic volume, no limiter. They carry a 🔊 badge.
+> **Volume**: by default every render is level-matched to about −9 LUFS with a −1 dB peak (*Loud & consistent*). The effect's audio is measured first, then turned up or down, soft-clipped and limited, so quiet effects like vocoders come out as loud as the rest. Effects that are loud on purpose (🔊 badge) are never turned down. Choose *Standard* (−14 LUFS) or *As the effect makes it* under Output → Volume.
 
 ## Download
 

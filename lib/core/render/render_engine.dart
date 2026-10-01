@@ -106,7 +106,8 @@ class RenderEngine {
   // ---------------------------------------------------------------------------
 
   Future<RenderOutcome> render(RenderRequest request, {ProgressCallback? onProgress, CancelToken? cancel}) async {
-    final cmd = CommandBuilder.build(request);
+    onProgress?.call(0, 'Measuring ${request.effect.name}');
+    final cmd = CommandBuilder.build(await leveled(request, cancel: cancel));
     await Directory(p.dirname(request.outputPath)).create(recursive: true);
     try {
       await _runner.run(
@@ -122,6 +123,30 @@ class RenderEngine {
     return RenderOutcome(request.outputPath);
   }
 
+  /// [r] with the gain that brings its audio to the output's loudness
+  /// target: the effect's audio is measured first. Unchanged when level
+  /// matching is off, there's no audio, or the measurement fails.
+  Future<RenderRequest> leveled(RenderRequest r, {CancelToken? cancel}) async {
+    final target = r.output.loudness.lufs;
+    final format = r.target == EncodeTarget.output ? r.output.format : OutputFormat.mp4;
+    if (target == null || !r.media.hasAudio || !format.hasAudio) return r;
+    try {
+      Future<double?> measure(RenderRequest x) async =>
+          CommandBuilder.parseLoudness(await _runner.run(CommandBuilder.measure(x).args, cancel: cancel));
+      final first = CommandBuilder.gainFor(await measure(r), target, loud: r.effect.loud);
+      if (first == null) return r;
+      if (first <= 0.5) return r.withGain(first);
+      // Turning up: the limiter takes some of it back, so top up once.
+      final after = await measure(r.withGain(first));
+      if (after == null) return r.withGain(first);
+      return r.withGain((first + (target - after)).clamp(math.max(0.0, first - 3), first + 12).toDouble());
+    } on CancelledException {
+      rethrow;
+    } catch (_) {
+      return r;
+    }
+  }
+
   /// Short, low-res render for the in-app before/after player.
   Future<String> preview({
     required MediaInfo media,
@@ -130,26 +155,27 @@ class RenderEngine {
     required double start,
     required double seconds,
     required String cacheDir,
+    LoudnessTarget loudness = LoudnessTarget.loud,
     CancelToken? cancel,
     void Function(double)? onProgress,
   }) async {
     final end = math.min(media.duration, start + seconds);
-    final key = _cacheKey([media.path, effect.id, params.toString(), fmt(start), fmt(end)]);
+    final key = _cacheKey([media.path, effect.id, params.toString(), fmt(start), fmt(end), loudness.name]);
     final out = p.join(cacheDir, 'preview_$key.mp4');
     if (await File(out).exists()) return out;
     await Directory(cacheDir).create(recursive: true);
     final tmp = p.join(cacheDir, 'preview_$key.part.mp4');
-    final cmd = CommandBuilder.build(
-      RenderRequest(
-        media: media,
-        effect: effect,
-        params: params,
-        outputPath: tmp,
-        start: start,
-        end: end,
-        target: EncodeTarget.preview,
-      ),
+    final request = RenderRequest(
+      media: media,
+      effect: effect,
+      params: params,
+      outputPath: tmp,
+      start: start,
+      end: end,
+      target: EncodeTarget.preview,
+      output: OutputSettings(loudness: loudness),
     );
+    final cmd = CommandBuilder.build(await leveled(request, cancel: cancel));
     try {
       await _runner.run(cmd.args, expectedSeconds: cmd.expectedSeconds, onProgress: onProgress, cancel: cancel);
       await File(tmp).rename(out);
@@ -241,7 +267,7 @@ class RenderEngine {
               name: displayName,
               file: 'seg_${jobs.length.toString().padLeft(4, '0')}.mkv',
               seconds: req.titleCardSeconds,
-              command: (out) => CommandBuilder.titleCard(
+              command: (out) async => CommandBuilder.titleCard(
                 outputPath: out,
                 width: w,
                 height: h,
@@ -269,17 +295,20 @@ class RenderEngine {
             name: displayName,
             file: 'seg_${ownerIndex.toString().padLeft(4, '0')}.mkv',
             seconds: seconds,
-            command: (out) => CommandBuilder.build(
-              RenderRequest(
-                media: req.media,
-                effect: entry.effect,
-                params: entry.params,
-                outputPath: out,
-                start: req.start,
-                end: req.end,
-                output: req.output,
-                target: EncodeTarget.segment,
-                segment: SegmentFormat(width: w, height: h, fps: fps, label: overlay),
+            command: (out) async => CommandBuilder.build(
+              await leveled(
+                RenderRequest(
+                  media: req.media,
+                  effect: entry.effect,
+                  params: entry.params,
+                  outputPath: out,
+                  start: req.start,
+                  end: req.end,
+                  output: req.output,
+                  target: EncodeTarget.segment,
+                  segment: SegmentFormat(width: w, height: h, fps: fps, label: overlay),
+                ),
+                cancel: cancel,
               ),
             ),
           ),
@@ -308,7 +337,7 @@ class RenderEngine {
           if (cursor >= jobs.length) return;
           final job = jobs[cursor++];
           final out = p.join(work.path, job.file);
-          final cmd = job.command(out);
+          final cmd = await job.command(out);
           final label = job.isCard ? 'Title card: ${job.name}' : 'Rendering ${job.name}';
           try {
             await _runner.run(
@@ -425,7 +454,7 @@ class _SegmentJob {
   final String file;
   final double seconds;
   final bool isCard;
-  final BuiltCommand Function(String outputPath) command;
+  final Future<BuiltCommand> Function(String outputPath) command;
   _SegmentJob? owner;
   bool ok = false;
 }

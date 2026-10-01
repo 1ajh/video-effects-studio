@@ -46,7 +46,8 @@ class FfmpegRunner {
 
   final String ffmpegPath;
 
-  Future<void> run(
+  /// Runs FFmpeg; returns the tail of its log (stderr).
+  Future<String> run(
     List<String> args, {
     String? workingDirectory,
     double? expectedSeconds,
@@ -82,6 +83,7 @@ class FfmpegRunner {
       throw FfmpegException(summarizeError(stderrLines, exitCode), exitCode: exitCode, log: stderrLines.join('\n'));
     }
     onProgress?.call(1.0);
+    return stderrLines.join('\n');
   }
 
   /// Picks the most useful line out of FFmpeg's error output.

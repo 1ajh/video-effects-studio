@@ -5,6 +5,8 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_effects_studio/core/audio/dsp.dart';
+import 'package:video_effects_studio/core/audio/audio_buffer.dart';
 import 'package:path/path.dart' as p;
 import 'package:video_effects_studio/core/effects/custom_effect.dart';
 import 'package:video_effects_studio/core/effects/effect.dart';
@@ -176,6 +178,45 @@ void main() {
       expect(result.failures.map((f) => f.effectName), ['Broken']);
       expectDuration(await engine.probe(out), withAudio.duration);
     });
+  });
+
+  test('level matching makes quiet effects loud and leaves loud ones alone', () async {
+    if (kit == null) return markTestSkipped('ffmpeg not found');
+    final speech = p.join(tmp.path, 'speech.mp4');
+    final r = await Process.run(kit!.ffmpegPath, [
+      '-hide_banner', '-loglevel', 'error', '-y', //
+      '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=25',
+      '-i', 'test/fixtures/speech_a.wav', '-shortest',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', speech,
+    ]);
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final media = await engine.probe(speech);
+    Future<double> lufsOf(String id, LoudnessTarget target) async {
+      final effect = EffectRegistry.builtIn.firstWhere((e) => e.id == id);
+      final out = p.join(tmp.path, 'level_${id}_${target.name}.wav');
+      await engine.render(
+        RenderRequest(
+          media: media,
+          effect: effect,
+          params: effect.defaults(),
+          outputPath: out,
+          output: OutputSettings(format: OutputFormat.wav, loudness: target),
+        ),
+      );
+      final a = AudioBuffer.fromWav(File(out).readAsBytesSync());
+      if (target != LoudnessTarget.off && id != 'earrape') {
+        expect(gainToDb(a.peak()), lessThanOrEqualTo(-0.9), reason: '$id peak');
+      }
+      return loudness(a.data, a.sampleRate, channels: a.channels);
+    }
+
+    // A vocoder that comes out ~13 dB quieter than the voice on its own.
+    expect(await lufsOf('daft_vocoder', LoudnessTarget.off), lessThan(-30));
+    expect(await lufsOf('daft_vocoder', LoudnessTarget.loud), closeTo(-9, 1.5));
+    expect(await lufsOf('daft_vocoder', LoudnessTarget.standard), closeTo(-14, 1.5));
+    expect(await lufsOf('pitch_shift', LoudnessTarget.loud), closeTo(-9, 1.5));
+    // Earrape is louder than the target on purpose: it isn't turned down.
+    expect(await lufsOf('earrape', LoudnessTarget.loud), greaterThan(-7));
   });
 
   test('preview and thumbnail', () async {

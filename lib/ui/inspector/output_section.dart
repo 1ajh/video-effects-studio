@@ -102,6 +102,17 @@ class _OutputSectionState extends State<OutputSection> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      Tooltip(
+                        message: o.loudness.blurb,
+                        child: _Dropdown<LoudnessTarget>(
+                          label: 'Volume',
+                          value: o.loudness,
+                          enabled: o.format.hasAudio,
+                          items: {for (final l in LoudnessTarget.values) l: l.label},
+                          onChanged: (l) => settings.setOutput(o.copyWith(loudness: l)),
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       InkWell(
                         borderRadius: BorderRadius.circular(8),
