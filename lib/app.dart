@@ -9,6 +9,7 @@ import 'state/editor_controller.dart';
 import 'state/engine_controller.dart';
 import 'state/history_controller.dart';
 import 'state/library_controller.dart';
+import 'state/license_controller.dart';
 import 'state/playback_controller.dart';
 import 'state/preview_controller.dart';
 import 'state/project_controller.dart';
@@ -19,6 +20,7 @@ import 'state/sparta_playback.dart';
 import 'state/store.dart';
 import 'state/thumbnail_service.dart';
 import 'state/update_controller.dart';
+import 'ui/license/license_gate.dart';
 import 'ui/shell/editor_shell.dart';
 import 'ui/theme.dart';
 
@@ -29,9 +31,13 @@ class StudioApp extends StatefulWidget {
     required this.playerAvailable,
     this.autoInit = true,
     this.initialFiles = const [],
+    this.license,
   });
 
   final Store store;
+
+  /// The license check (a real one unless a test passes its own).
+  final LicenseController? license;
 
   /// Whether media_kit / libmpv initialized (in-app playback).
   final bool playerAvailable;
@@ -47,6 +53,7 @@ class StudioApp extends StatefulWidget {
 }
 
 class _StudioAppState extends State<StudioApp> {
+  late final license = widget.license ?? LicenseController(widget.store);
   late final settings = SettingsController(widget.store);
   late final library = LibraryController(widget.store);
   late final history = HistoryController(widget.store);
@@ -87,6 +94,7 @@ class _StudioAppState extends State<StudioApp> {
     // New clip or trim: stop generating thumbnails for the old frame.
     project.addListener(thumbnails.cancelPending);
     library.addListener(() => compilation.prune(library.registry));
+    license.load();
     if (widget.autoInit) {
       engine.init(ffmpegOverride: settings.ffmpegOverride).then((_) {
         project.reprobeFailed();
@@ -111,6 +119,7 @@ class _StudioAppState extends State<StudioApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: license),
         ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider.value(value: library),
         ChangeNotifierProvider.value(value: history),
@@ -132,7 +141,7 @@ class _StudioAppState extends State<StudioApp> {
         theme: buildTheme(),
         darkTheme: buildTheme(),
         themeMode: ThemeMode.dark,
-        home: const EditorShell(),
+        home: const LicenseGate(child: EditorShell()),
       ),
     );
   }

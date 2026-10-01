@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../state/engine_controller.dart';
 import '../../state/history_controller.dart';
+import '../../core/licensing/license.dart';
 import '../../state/library_controller.dart';
+import '../../state/license_controller.dart';
 import '../../state/project_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../state/update_controller.dart';
@@ -270,6 +272,7 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ],
               ),
+              const _LicenseCard(),
               _Card(
                 title: 'About',
                 icon: Icons.info_outline,
@@ -285,9 +288,9 @@ class SettingsPage extends StatelessWidget {
                     spacing: 8,
                     children: [
                       OutlinedButton.icon(
-                        onPressed: () => openUrl('https://github.com/${UpdateController.repo}'),
-                        icon: const Icon(Icons.code, size: 16),
-                        label: const Text('Source'),
+                        onPressed: () => openUrl(storeUrl),
+                        icon: const Icon(Icons.public, size: 16),
+                        label: const Text('Website'),
                       ),
                       OutlinedButton.icon(
                         onPressed: () => openUrl('https://github.com/${UpdateController.repo}/issues'),
@@ -346,6 +349,54 @@ class _Card extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _LicenseCard extends StatelessWidget {
+  const _LicenseCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final license = context.watch<LicenseController>();
+    final a = license.activation;
+    Future<void> deactivate() async {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Deactivate this computer?'),
+          content: const Text(
+            'SRLE Studio locks on this computer and your key gets a free slot for another one. '
+            'You can unlock it here again later with the same key.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Deactivate')),
+          ],
+        ),
+      );
+      if (ok == true) await license.deactivate();
+    }
+
+    return _Card(
+      title: 'License',
+      icon: Icons.key_outlined,
+      children: [
+        if (license.unlicensedBuild)
+          const Text('Development build: no license check.', style: TextStyle(fontSize: 12.5, color: AppColors.muted))
+        else
+          _Row(
+            label: a == null ? 'Not unlocked' : 'Unlocked with ${license.maskedKey}',
+            description: a == null ? null : 'Order ${a.order}. Your key works on up to 3 of your computers.',
+            trailing: a == null
+                ? const SizedBox.shrink()
+                : TextButton(
+                    style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                    onPressed: deactivate,
+                    child: const Text('Deactivate this computer'),
+                  ),
+          ),
+      ],
+    );
+  }
 }
 
 class _Row extends StatelessWidget {

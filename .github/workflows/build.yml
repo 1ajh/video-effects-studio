@@ -15,6 +15,9 @@ permissions:
 
 env:
   FLUTTER_VERSION: '3.47.5'
+  # The store's public key (store/README.md): builds made without it can't
+  # be unlocked, so the build stops instead.
+  SRLE_LICENSE_PUBLIC_KEY: ${{ vars.SRLE_LICENSE_PUBLIC_KEY }}
 
 jobs:
   build-windows:
@@ -27,7 +30,11 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build windows --release
+      - name: Build
+        shell: bash
+        run: |
+          test -n "$SRLE_LICENSE_PUBLIC_KEY" || { echo "::error::Set the SRLE_LICENSE_PUBLIC_KEY Actions variable (store/README.md)"; exit 1; }
+          flutter build windows --release --dart-define=SRLE_LICENSE_PUBLIC_KEY=$SRLE_LICENSE_PUBLIC_KEY
 
       - name: Bundle FFmpeg
         shell: pwsh
@@ -61,7 +68,10 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build linux --release
+      - name: Build
+        run: |
+          test -n "$SRLE_LICENSE_PUBLIC_KEY" || { echo "::error::Set the SRLE_LICENSE_PUBLIC_KEY Actions variable (store/README.md)"; exit 1; }
+          flutter build linux --release --dart-define=SRLE_LICENSE_PUBLIC_KEY=$SRLE_LICENSE_PUBLIC_KEY
 
       - name: Bundle FFmpeg
         run: |
@@ -88,7 +98,10 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build macos --release
+      - name: Build
+        run: |
+          test -n "$SRLE_LICENSE_PUBLIC_KEY" || { echo "::error::Set the SRLE_LICENSE_PUBLIC_KEY Actions variable (store/README.md)"; exit 1; }
+          flutter build macos --release --dart-define=SRLE_LICENSE_PUBLIC_KEY=$SRLE_LICENSE_PUBLIC_KEY
 
       - name: Bundle universal FFmpeg
         run: |
