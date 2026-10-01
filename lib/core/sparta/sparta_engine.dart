@@ -342,7 +342,9 @@ class SpartaEngine {
         .expand((tr) => tr.notes)
         .fold<double?>(null, (m, n) => m == null || n.beat < m ? n.beat : m);
     final firstSeconds = first == null ? null : first * 60 / t.bpm;
-    final found = await Isolate.run(() => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds));
+    final found = await Isolate.run(
+      () => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds, bpm: t.bpm),
+    );
     return t.copyWith(audioOffset: found);
   }
 

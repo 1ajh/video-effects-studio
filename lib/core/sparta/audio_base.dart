@@ -110,12 +110,6 @@ class AudioBaseAnalyzer {
     final kick = _whiten(flux.low);
     final mid = _whiten(flux.mid);
     final high = _whiten(flux.high);
-    // Kicks and snares sit on the beat; open hats (loud, and everywhere in
-    // Sparta bases) sit between beats, so the full band can't place beats.
-    final onBeat = Float64List(frames);
-    for (var i = 0; i < frames; i++) {
-      onBeat[i] = kick[i] + mid[i];
-    }
     final fps = sampleRate / hop;
     // Frame index → seconds of the attack it reports.
     double timeOf(double frame) => (frame * hop + window / 2) / sampleRate + onsetLatency;
@@ -181,22 +175,7 @@ class AudioBaseAnalyzer {
       }
     }
     final period = fps * 60 / bpm;
-    var bestPhase = _bestPhase(onBeat, period, frames).$1;
-    // At half time the comb can lock onto the snare beats (kick + snare is
-    // louder than a lone kick): the beats are where the kick's sub sits.
-    {
-      final subBand = _whiten(flux.sub);
-      double subSum(double phase) {
-        var s = 0.0;
-        for (var t = phase; t < frames - 1; t += period) {
-          s += _at(subBand, t);
-        }
-        return s;
-      }
-
-      final alt = (bestPhase + period / 2) % period;
-      if (subSum(alt) > subSum(bestPhase) * 1.15) bestPhase = alt;
-    }
+    final bestPhase = _beatPhase(flux, period, frames);
 
     // Downbeat. In real Sparta bases the kick hits every beat but most on
     // beat 1, the snare 2 and 4, and the bass/chords change on the bar
@@ -365,12 +344,19 @@ class AudioBaseAnalyzer {
   /// Repetitive grooves line up equally well a beat or two off, so when the
   /// project's first note time is known ([firstNoteSeconds]) the search is
   /// anchored on where the audio first makes sound.
+  ///
+  /// With the project's tempo ([bpm]) the offset is kept on the audio's own
+  /// beats: hats and off-beat stabs can line up a 16th or 8th note off,
+  /// which plays every sample off the beat. The audio's beat phase was right
+  /// on all 17 community bases with a render, where drum matching alone
+  /// missed by a 16th or 8th on 6.
   double alignHits(
     AudioBuffer audio,
     List<double> hitSeconds, {
     double minOffset = -0.5,
     double maxOffset = 8,
     double? firstNoteSeconds,
+    double? bpm,
   }) {
     final mono = audio.mono();
     final x = mono.sampleRate == sampleRate
@@ -383,28 +369,82 @@ class AudioBaseAnalyzer {
       if (first != null) anchor = (first - firstNoteSeconds).clamp(minOffset, maxOffset);
     }
     if (hitSeconds.isEmpty || frames < 10) return anchor ?? 0;
-    final onset = _whiten(_onsetFlux(x, frames).full);
+    final flux = _onsetFlux(x, frames);
+    final onset = _whiten(flux.full);
     final fps = sampleRate / hop;
     final base = (window / 2) / sampleRate + onsetLatency;
+    final hits = hitSeconds.take(400).toList();
+    double score(double off) {
+      var s = 0.0;
+      for (final h in hits) {
+        s += _at(onset, (h + off - base) * fps);
+      }
+      return s;
+    }
+
+    if (bpm != null && bpm > 0 && frames > 400) {
+      // Beat 0 sits on one of the audio's beats: the one nearest the anchor
+      // unless another lines the drums up clearly better.
+      final spb = 60 / bpm;
+      final phase = ((_beatPhase(flux, fps * 60 / bpm, frames) * hop + window / 2) / sampleRate + onsetLatency) % spb;
+      final lo = anchor == null ? minOffset : math.max(minOffset, anchor - 0.6 * spb);
+      final hi = anchor == null ? maxOffset : math.min(maxOffset, anchor + 0.6 * spb);
+      double? best;
+      var bestScore = -1.0;
+      for (var off = phase + ((lo - phase) / spb).ceil() * spb; off <= hi + 1e-9; off += spb) {
+        final near = anchor == null ? 1.0 : 1 - 0.15 * (off - anchor).abs() / spb;
+        final s = score(off) * near;
+        if (s > bestScore) {
+          bestScore = s;
+          best = off;
+        }
+      }
+      if (best != null) return best;
+      // The anchor sits outside the allowed range (a trimmed render): the
+      // nearest beat to it.
+      if (anchor != null) return phase + ((anchor - phase) / spb).round() * spb;
+    }
     var lo = minOffset, hi = maxOffset;
     if (anchor != null) {
       lo = math.max(minOffset, anchor - 0.12);
       hi = math.min(maxOffset, anchor + 0.12);
       if (hi < lo) return anchor;
     }
-    final hits = hitSeconds.take(400).toList();
     var best = lo, bestScore = -1.0;
     for (var off = lo; off <= hi + 1e-9; off += 1 / fps) {
-      var s = 0.0;
-      for (final h in hits) {
-        s += _at(onset, (h + off - base) * fps);
-      }
+      final s = score(off);
       if (s > bestScore) {
         bestScore = s;
         best = off;
       }
     }
     return best;
+  }
+
+  /// Frame (fractional) of the first beat: the comb over kick and snare
+  /// onsets. Open hats (loud, and everywhere in Sparta bases) sit between
+  /// beats, so the full band can't place beats. At half time the comb can
+  /// lock onto the snare beats (kick + snare is louder than a lone kick):
+  /// the beats are where the kick's sub sits.
+  static double _beatPhase(_Flux flux, double period, int frames) {
+    final kick = _whiten(flux.low), mid = _whiten(flux.mid);
+    final onBeat = Float64List(frames);
+    for (var i = 0; i < frames; i++) {
+      onBeat[i] = kick[i] + mid[i];
+    }
+    var phase = _bestPhase(onBeat, period, frames).$1;
+    final subBand = _whiten(flux.sub);
+    double subSum(double p) {
+      var s = 0.0;
+      for (var t = p; t < frames - 1; t += period) {
+        s += _at(subBand, t);
+      }
+      return s;
+    }
+
+    final alt = (phase + period / 2) % period;
+    if (subSum(alt) > subSum(phase) * 1.15) phase = alt;
+    return phase;
   }
 
   static double _rms(Float32List x, double from, double to) {

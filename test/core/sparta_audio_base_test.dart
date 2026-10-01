@@ -73,6 +73,25 @@ void main() {
     });
   }
 
+  test('lines a project up on the audio\'s beats when the audio makes sound before beat 1', () {
+    // A click 0.15 s before the first beat: the first sound isn't the first
+    // note, and the project's hats alone could line up a 16th off.
+    const lead = 0.45;
+    final audio = withLeadIn(rendered, lead);
+    final click = ((lead - 0.15) * audio.sampleRate).round();
+    for (var i = 0; i < audio.sampleRate ~/ 100; i++) {
+      for (var c = 0; c < audio.channels; c++) {
+        audio.data[(click + i) * audio.channels + c] = i.isEven ? 0.8 : -0.8;
+      }
+    }
+    final hats = [
+      for (final e in sampleScore().events)
+        if (e.instrument == Instrument.hat) e.beat * 60 / 140,
+    ];
+    final off = AudioBaseAnalyzer().alignHits(audio, hats, firstNoteSeconds: 0, bpm: 140);
+    expect(off, closeTo(lead, 0.012));
+  });
+
   test('transcribes the drums and the chorus pitch pattern from audio', () {
     const lead = 0.8;
     final a = AudioBaseAnalyzer().analyze(withLeadIn(rendered, lead));
