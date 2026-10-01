@@ -31,7 +31,7 @@ class AudioTranscriber {
 
   static const _fftSize = 2048;
 
-  BaseTranscription transcribe(AudioBaseAnalysis a, {String name = ''}) {
+  BaseTranscription transcribe(AudioBaseAnalysis a, {String name = '', bool rephased = false}) {
     final x = a.signal, bands = a.onsets;
     if (x == null || bands == null) throw ArgumentError('The analysis kept no signal to transcribe.');
     final sr = AudioBaseAnalyzer.sampleRate;
@@ -46,6 +46,18 @@ class AudioTranscriber {
       bars: a.bars,
       rootPc: a.tonicPc,
     );
+    // Drums can't always tell beat 1 from beat 3; the chord loop can. Bar 1
+    // moves onto the loop's first chord: back by up to half a bar (a moment
+    // of silence before the base), else forward.
+    final phase = rephased ? 0 : AudioSectioner.cyclePhase(structure.chords);
+    if (phase != 0) {
+      final half = a.barSeconds / 2;
+      var downbeat = a.firstDownbeat + phase * half;
+      while (downbeat - 4 * half >= -half) {
+        downbeat -= 4 * half;
+      }
+      return transcribe(a.withDownbeat(downbeat), name: name, rephased: true);
+    }
     final bars = math.max(1, math.min(a.bars, structure.musicBars));
     final steps = bars * 16;
     double at(int s) => a.firstDownbeat + s * stepSec;

@@ -43,6 +43,21 @@ class AudioBaseAnalysis {
   final double tempoConfidence;
 
   double get barSeconds => 4 * 60 / bpm;
+
+  /// The same analysis with bar 1 moved to [downbeat] (seconds).
+  AudioBaseAnalysis withDownbeat(double downbeat) => AudioBaseAnalysis(
+    bpm: bpm,
+    firstDownbeat: downbeat,
+    bars: signal == null
+        ? bars
+        : math.max(1, ((signal!.length / AudioBaseAnalyzer.sampleRate - downbeat) / barSeconds).floor()),
+    barRoots: barRoots,
+    tonicPc: tonicPc,
+    barEnergy: barEnergy,
+    tempoConfidence: tempoConfidence,
+    signal: signal,
+    onsets: onsets,
+  );
 }
 
 /// Whitened onset envelopes (frames of [AudioBaseAnalyzer.hop] samples).

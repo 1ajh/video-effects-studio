@@ -304,6 +304,38 @@ class AudioSectioner {
   /// The chord on every half bar: its root from the bass (40–180 Hz), major
   /// or minor from the third above it. Half bars without a clear bass get
   /// no chord.
+  /// Half bars (1-3) bar 1 sits off the base's chord loop, when its chords
+  /// clearly loop the classic Sparta progression (D, D#, C, D#, in any key)
+  /// from another half bar; else 0. Sections start on the loop's first
+  /// chord, so a bar 1 half a bar off plays every pattern two beats late.
+  static int cyclePhase(List<GuideNote> chords) {
+    const classic = [0, 1, -2, 1];
+    final roots = <int, int>{};
+    for (final c in chords) {
+      final h = (c.beat / 2).round();
+      final r = roots[h];
+      if (r == null || c.semitone < r) roots[h] = c.semitone;
+    }
+    final n = roots.length;
+    if (n < 8) return 0;
+    var best = 0, bestHits = -1, unshifted = 0;
+    for (var k = 0; k < 4; k++) {
+      for (var key = 0; key < 12; key++) {
+        var hits = 0;
+        for (final e in roots.entries) {
+          if ((e.value - classic[(e.key - k) % 4] - key) % 12 == 0) hits++;
+        }
+        if (k == 0 && hits > unshifted) unshifted = hits;
+        if (hits > bestHits) {
+          bestHits = hits;
+          best = k;
+        }
+      }
+    }
+    if (best == 0 || bestHits < 0.65 * n || bestHits - unshifted < 0.3 * n) return 0;
+    return best;
+  }
+
   static List<GuideNote> _chords(
     Float32List x,
     int sampleRate,

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_effects_studio/core/audio/audio_buffer.dart';
 import 'package:video_effects_studio/core/sparta/audio_base.dart';
+import 'package:video_effects_studio/core/sparta/audio_sections.dart';
 import 'package:video_effects_studio/core/sparta/audio_transcriber.dart';
 import 'package:video_effects_studio/core/sparta/base_renderer.dart';
 import 'package:video_effects_studio/core/sparta/score.dart';
@@ -114,6 +115,18 @@ void main() {
       if (t.chordRootAt(h * 2 + 0.1) == progression[h % 4]) right++;
     }
     expect(right / total, greaterThan(0.85), reason: '$right of $total half bars');
+  });
+
+  test('finds where the chord loop starts when bar 1 is half a bar off', () {
+    List<GuideNote> loop(int from, int key, {List<int> progression = const [0, 1, -2, 1]}) => [
+      for (var h = 0; h < 32; h++)
+        for (final iv in [0, 4, 7]) GuideNote(h * 2.0, 2, progression[(h - from) % 4] + key + iv),
+    ];
+    expect(AudioSectioner.cyclePhase(loop(0, 0)), 0);
+    expect(AudioSectioner.cyclePhase(loop(1, 0)), 1);
+    expect(AudioSectioner.cyclePhase(loop(3, 5)), 3, reason: 'in any key');
+    expect(AudioSectioner.cyclePhase(loop(2, -2)), 2, reason: 'a bar off');
+    expect(AudioSectioner.cyclePhase(loop(1, 0, progression: const [0, -4, 3, -2])), 0, reason: 'another progression');
   });
 
   test('transcribes the drums and the chorus pitch pattern from audio', () {
