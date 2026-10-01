@@ -19,6 +19,7 @@ class EffectRegistry {
   static final List<Effect> builtIn = List.unmodifiable([
     ...logoEditingEffects,
     ...popularEffects,
+    ...popularEffects2,
     ...gMajorEffects,
     ...vocoderEffects,
     ...vocodexEffects,
