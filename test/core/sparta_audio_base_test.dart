@@ -115,6 +115,12 @@ void main() {
       if (t.chordRootAt(h * 2 + 0.1) == progression[h % 4]) right++;
     }
     expect(right / total, greaterThan(0.85), reason: '$right of $total half bars');
+    // Hits play their chord's root.
+    expect(t.hits, isNotEmpty);
+    for (final h in t.hits) {
+      final root = t.chordRootAt(h.beat);
+      if (root != null) expect((h.semitone - root) % 12, 0, reason: 'hit at ${h.beat}');
+    }
   });
 
   test('finds where the chord loop starts when bar 1 is half a bar off', () {
