@@ -45,25 +45,30 @@ class TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
+          Tooltip(
+            message: 'SRLE Studio — Sparta Remix & Logo Editing',
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              gradient: const LinearGradient(
-                colors: [AppColors.accent, Color(0xFFE040FB), AppColors.compilation],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              child: Image.asset(
+                'assets/branding/logo_256.png',
+                width: 32,
+                height: 32,
+                filterQuality: FilterQuality.medium,
               ),
             ),
-            child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
           ),
           if (showTitle) ...[
             const SizedBox(width: 10),
-            const Text(
-              'Video Effects Studio',
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, letterSpacing: -0.1),
+            ShaderMask(
+              shaderCallback: (r) => const LinearGradient(
+                colors: [Color(0xFFFFB36B), AppColors.sparta, Color(0xFFFF3D9A)],
+              ).createShader(r),
+              child: const Text(
+                'SRLE',
+                style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white),
+              ),
             ),
+            const Text(' Studio', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, letterSpacing: -0.2)),
           ],
           const SizedBox(width: 20),
           SegmentedButton<EditorMode>(

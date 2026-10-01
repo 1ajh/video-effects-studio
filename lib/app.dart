@@ -127,7 +127,7 @@ class _StudioAppState extends State<StudioApp> {
         ChangeNotifierProvider.value(value: spartaPlayback),
       ],
       child: MaterialApp(
-        title: 'Video Effects Studio',
+        title: 'SRLE Studio',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         darkTheme: buildTheme(),

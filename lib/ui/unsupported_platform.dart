@@ -14,7 +14,7 @@ class UnsupportedPlatformApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Video Effects Studio',
+      title: 'SRLE Studio',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
       home: const _Landing(),
@@ -49,7 +49,7 @@ class _Landing extends StatelessWidget {
                       child: const Icon(Icons.auto_awesome, color: Colors.white, size: 32),
                     ),
                     const SizedBox(height: 18),
-                    Text('Video Effects Studio', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 26)),
+                    Text('SRLE Studio', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 26)),
                     const SizedBox(height: 10),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 520),

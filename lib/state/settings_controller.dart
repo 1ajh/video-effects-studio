@@ -43,7 +43,7 @@ class SettingsController extends ChangeNotifier {
     final env = Platform.environment;
     final home = env['USERPROFILE'] ?? env['HOME'] ?? Directory.current.path;
     final videos = Platform.isMacOS ? 'Movies' : 'Videos';
-    return p.join(home, videos, 'VideoEffectsStudio');
+    return p.join(home, videos, 'SRLE Studio');
   }
 
   void _load() {

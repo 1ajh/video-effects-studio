@@ -1,6 +1,11 @@
-# Video Effects Studio
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/wordmark_dark.png">
+  <img alt="SRLE Studio — Sparta Remix & Logo Editing" src="assets/branding/wordmark_light.png" width="520">
+</picture>
 
-A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, Sparta pitches, voice changers, glitches, and 180+ more. Preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos. And the **Sparta Remix Generator** turns any video of someone talking into a full, mixed and mastered Sparta remix, video included.
+# SRLE Studio (Sparta Remix & Logo Editing)
+
+A desktop studio for **Sparta remixes** and **logo-editing style video effects**. The **Sparta Remix Generator** turns any video of someone talking into a full Sparta remix over a real base, followed exactly: pitch, bass and pads on the base's notes, the chorus words in the wiki's patterns, percussion on the base's drums, mixed, mastered and with the classic box video. The effects side has G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, voice changers, glitches, and 180+ more: preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos.
 
 ![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-7C5CFF)
 ![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
@@ -33,19 +38,22 @@ The third mode (`Ctrl+3`) makes a Sparta remix the way the community does: a rea
 
 - **Base**
   - **Library**: 579 real bases you can search and download, each credited to its maker and linked to where it was published: Keaton's official Sparta Extended instrumental, the HADES BLACK, Francex and *Some Sparta Bases Archive* collections, single uploads, and the Sparta Archive FLP Remixes, whose bases come with their FL Studio projects (marked **Exact**).
-  - **Your audio**: any base as MP3/WAV. Tempo, bar 1, the kicks, snares and hats, the hit notes (matched against every pitch pattern on the Sparta Remix Wiki, in every key) and the sections are worked out by listening. If the file is a library base, its checked transcription is used instead.
-  - **Your project**: FL Studio `.flp`, FL Studio Mobile `.flm` or MIDI, with the base's audio (lined up automatically) or re-synthesized. The base's notes are read exactly; pick the hit/lead track if the automatic choice is wrong.
-- **What the remix plays** (all from the base, nothing made up):
-  - the **pitch sample** plays the base's own hit notes, hard-tuned to the base's root (or *Natural*, keeping the voice's wobble);
-  - the **chorus words** play the wiki's word patterns: the standard chorus, DunDunDenDen's 1-2-3A-3B, the epicness and madness patterns, only in the sections that have them. The chorus is words only;
+  - **Your audio**: any base as MP3/WAV. Tempo, bar 1, where the music ends, the kicks, snares and hats, the chords, the hit notes (matched against every pitch pattern on the Sparta Remix Wiki, in every key) and the sections (the chorus is the loud part the base keeps coming back to; the parts between follow the Sparta order) are worked out by listening. If the file is a library base, its checked transcription is used instead.
+  - **Your project**: FL Studio `.flp`, FL Studio Mobile `.flm` or MIDI, with the base's audio (lined up automatically) or re-synthesized. The base's notes are read exactly (hits, bass line and chords); pick the hit/lead track if the automatic choice is wrong.
+- **What the remix plays** (all from the base, nothing made up), and nothing after the base ends:
+  - the **pitch sample** plays the base's own hit notes, hard-tuned to the base's root (or *Natural*, keeping the voice's wobble). Where a section has no hits of its own, the wiki's pattern for it plays, fitted to the base's chords;
+  - the **bass** (a voiced syllable tuned down to D2, or your base's root) plays the base's bass line, and the **pads** (a vowel stretched into a pad) play its chords; both can be switched off globally or per section;
+  - the **chorus words** play the wiki's word patterns: the standard chorus, DunDunDenDen's 1-2-3A-3B, the epicness and madness patterns, only in the sections that have them; a long intro plays the chorus after the quote. The chorus is words only by default;
   - the **percussion** lands on the base's own kicks, snares and hats;
   - the **quote** (your whole line) opens the intro.
+- **Pitched notes**: *Stretch* (default) re-pitches every note with its length kept, like FL Studio's stretch mode, so voices don't turn into chipmunks; *Resample + crossfades* plays them like a sampler (pitch and speed together) with automatic crossfades between notes.
+- **Keaton's Sparta Extended base** ships with a checked transcription: its 13 sections, the D–D#–C–D# progression, its bass line, chords and drums, and the wiki's original patterns in their places (Awesomeness 1 before the madness, Awesomeness 2 opening the final chorus).
 - **Source and line**: everything is cut from your sources. The app finds the spoken lines; you pick one and its words become the chorus samples, numbered in order (syllables of a word are 3A, 3B…). Play each word, drag the cuts between words, split, join or trim them. Nothing is layered from anywhere else unless you switch on the synth drum body (off by default: that would be a fake sample). Chorus Crisp is on by default.
 - **Fix the base**: transcriptions from audio are drafts, so everything is editable: relabel, rename, split, merge or drag sections (the classics plus pre- and post-epicness), change the root, move or replace a section's hits with a wiki pattern, fix its kick/snare/hat, nudge beat 1. Fixes are kept per base. **Send your fixes** saves the transcription and opens a filled-in GitHub issue; approved ones are added to the catalog with your credit, for everyone.
 - **Per section**: choose any of the wiki's word and pitch patterns (classics, freestyles, KingSpartaX37's madness and the rest), or type your own in wiki notation.
 - **Random mode** (off by default) can use chorus freestyles, other pitch patterns, other samples per section and a different section layout. *Another take* re-rolls it.
-- **Video**: the classic box grid by default: one box per sample (pitch, each word, kick, snare, hat), sized automatically (2×2, 3×3 or 4×4), flipping horizontally on every hit, black between hits, and the quote full screen. Every one of those is an option (grid size; which boxes flip and how; black, dimmed or held last frame; quote full screen, in its own box or as a title card), plus Modern, Chaos/YTPMV and Minimal styles.
-- **Mix and export**: sampler transposition, choke per lane, a bus per lane, the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** master. Export the video (or MP3/WAV), plus optional **stems** (base, pitch, words, drums, quote) and **MIDI** (the sample chart and the base's notes).
+- **Video**: the classic box grid by default: one box per sample (pitch, bass, pads, each word, and the kick, snare and hat along the bottom row), sized automatically (2×2, 3×3 or 4×4), flipping horizontally on every hit, black between hits, and the quote full screen. Every one of those is an option (grid size; which boxes flip and how; black, dimmed or held last frame; quote full screen, in its own box or as a title card), plus Modern, Chaos/YTPMV and Minimal styles.
+- **Mix and export**: stretched or resampled notes, choke per lane, a bus per lane, the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** master. Export the video (or MP3/WAV), plus optional **stems** (base, pitch, bass, pads, words, drums, quote) and **MIDI** (the sample chart and the base's notes).
 
 > **Volume**: by default every render is level-matched to about −9 LUFS with a −1 dB peak (*Loud & consistent*). The effect's audio is measured first, then turned up or down, soft-clipped and limited, so quiet effects like vocoders come out as loud as the rest. Effects that are loud on purpose (🔊 badge) are never turned down. Choose *Standard* (−14 LUFS) or *As the effect makes it* under Output → Volume.
 
@@ -55,9 +63,9 @@ Grab the latest build from [Releases](https://github.com/1ajh/video-effects-stud
 
 | Platform | File | Notes |
 |---|---|---|
-| Windows 10/11 | `VideoEffectsStudio-windows.zip` | Unzip and run `video_effects_studio.exe` |
-| macOS 12+ | `VideoEffectsStudio-macos.dmg` | Unsigned: right-click → Open the first time |
-| Linux (x64) | `VideoEffectsStudio-linux.tar.gz` | Needs GTK 3 and **libmpv** for in-app playback (`sudo apt install libmpv2`) |
+| Windows 10/11 | `SRLEStudio-windows.zip` | Unzip and run `srle_studio.exe` |
+| macOS 12+ | `SRLEStudio-macos.dmg` | Unsigned: right-click → Open the first time |
+| Linux (x64) | `SRLEStudio-linux.tar.gz` | Needs GTK 3 and **libmpv** for in-app playback (`sudo apt install libmpv2`) |
 
 Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobile builds just show the effect list and a download link.
 

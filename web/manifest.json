@@ -1,11 +1,11 @@
 {
-    "name": "Video Effects Studio",
-    "short_name": "VFX Studio",
+    "name": "SRLE Studio (Sparta Remix & Logo Editing)",
+    "short_name": "SRLE Studio",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0E0E12",
     "theme_color": "#7C5CFF",
-    "description": "Logo-editing style video effects studio (desktop app).",
+    "description": "Sparta remixes and logo-editing effects (desktop app).",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

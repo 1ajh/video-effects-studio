@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#2a1d3d"/>
+      <stop offset="0.55" stop-color="#16121f"/>
+      <stop offset="1" stop-color="#0a090e"/>
+    </radialGradient>
+    <linearGradient id="helm" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffb36b"/>
+      <stop offset="0.38" stop-color="#ff5a36"/>
+      <stop offset="0.78" stop-color="#d0306f"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="crest" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ff5a36"/>
+      <stop offset="0.6" stop-color="#ff3d9a"/>
+      <stop offset="1" stop-color="#ffd166"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="face">
+      <rect width="1024" height="1024" fill="black"/>
+      <path d="M512 262 C 652 262 742 352 748 488 L 752 612 C 754 708 726 790 664 846 C 640 866 610 878 586 884 L 438 884 C 414 878 384 866 360 846 C 298 790 270 708 272 612 L 276 488 C 282 352 372 262 512 262 Z" fill="white"/>
+      <path d='M 318 548 C 370 506 452 498 494 510 L 494 576 C 468 602 414 608 358 598 C 338 588 326 570 318 548 Z' fill='black'/><path d='M 706 548 C 654 506 572 498 530 510 L 530 576 C 556 602 610 608 666 598 C 686 588 698 570 706 548 Z' fill='black'/><path d='M 468 596 L 494 590 L 494 646 Q 512 676 530 646 L 530 590 L 556 596 L 588 896 L 436 896 Z' fill='black'/>
+    </mask>
+    <clipPath id="tile"><rect x="0" y="0" width="1024" height="1024" rx="0"/></clipPath>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="22" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <!-- scanlines: the logo-editing / CRT feel -->
+    <g opacity="0.07">
+      <rect x="0" y="0" width="1024" height="3" fill="#ffffff"/><rect x="0" y="12" width="1024" height="3" fill="#ffffff"/><rect x="0" y="24" width="1024" height="3" fill="#ffffff"/><rect x="0" y="36" width="1024" height="3" fill="#ffffff"/><rect x="0" y="48" width="1024" height="3" fill="#ffffff"/><rect x="0" y="60" width="1024" height="3" fill="#ffffff"/><rect x="0" y="72" width="1024" height="3" fill="#ffffff"/><rect x="0" y="84" width="1024" height="3" fill="#ffffff"/><rect x="0" y="96" width="1024" height="3" fill="#ffffff"/><rect x="0" y="108" width="1024" height="3" fill="#ffffff"/><rect x="0" y="120" width="1024" height="3" fill="#ffffff"/><rect x="0" y="132" width="1024" height="3" fill="#ffffff"/><rect x="0" y="144" width="1024" height="3" fill="#ffffff"/><rect x="0" y="156" width="1024" height="3" fill="#ffffff"/><rect x="0" y="168" width="1024" height="3" fill="#ffffff"/><rect x="0" y="180" width="1024" height="3" fill="#ffffff"/><rect x="0" y="192" width="1024" height="3" fill="#ffffff"/><rect x="0" y="204" width="1024" height="3" fill="#ffffff"/><rect x="0" y="216" width="1024" height="3" fill="#ffffff"/><rect x="0" y="228" width="1024" height="3" fill="#ffffff"/><rect x="0" y="240" width="1024" height="3" fill="#ffffff"/><rect x="0" y="252" width="1024" height="3" fill="#ffffff"/><rect x="0" y="264" width="1024" height="3" fill="#ffffff"/><rect x="0" y="276" width="1024" height="3" fill="#ffffff"/><rect x="0" y="288" width="1024" height="3" fill="#ffffff"/><rect x="0" y="300" width="1024" height="3" fill="#ffffff"/><rect x="0" y="312" width="1024" height="3" fill="#ffffff"/><rect x="0" y="324" width="1024" height="3" fill="#ffffff"/><rect x="0" y="336" width="1024" height="3" fill="#ffffff"/><rect x="0" y="348" width="1024" height="3" fill="#ffffff"/><rect x="0" y="360" width="1024" height="3" fill="#ffffff"/><rect x="0" y="372" width="1024" height="3" fill="#ffffff"/><rect x="0" y="384" width="1024" height="3" fill="#ffffff"/><rect x="0" y="396" width="1024" height="3" fill="#ffffff"/><rect x="0" y="408" width="1024" height="3" fill="#ffffff"/><rect x="0" y="420" width="1024" height="3" fill="#ffffff"/><rect x="0" y="432" width="1024" height="3" fill="#ffffff"/><rect x="0" y="444" width="1024" height="3" fill="#ffffff"/><rect x="0" y="456" width="1024" height="3" fill="#ffffff"/><rect x="0" y="468" width="1024" height="3" fill="#ffffff"/><rect x="0" y="480" width="1024" height="3" fill="#ffffff"/><rect x="0" y="492" width="1024" height="3" fill="#ffffff"/><rect x="0" y="504" width="1024" height="3" fill="#ffffff"/><rect x="0" y="516" width="1024" height="3" fill="#ffffff"/><rect x="0" y="528" width="1024" height="3" fill="#ffffff"/><rect x="0" y="540" width="1024" height="3" fill="#ffffff"/><rect x="0" y="552" width="1024" height="3" fill="#ffffff"/><rect x="0" y="564" width="1024" height="3" fill="#ffffff"/><rect x="0" y="576" width="1024" height="3" fill="#ffffff"/><rect x="0" y="588" width="1024" height="3" fill="#ffffff"/><rect x="0" y="600" width="1024" height="3" fill="#ffffff"/><rect x="0" y="612" width="1024" height="3" fill="#ffffff"/><rect x="0" y="624" width="1024" height="3" fill="#ffffff"/><rect x="0" y="636" width="1024" height="3" fill="#ffffff"/><rect x="0" y="648" width="1024" height="3" fill="#ffffff"/><rect x="0" y="660" width="1024" height="3" fill="#ffffff"/><rect x="0" y="672" width="1024" height="3" fill="#ffffff"/><rect x="0" y="684" width="1024" height="3" fill="#ffffff"/><rect x="0" y="696" width="1024" height="3" fill="#ffffff"/><rect x="0" y="708" width="1024" height="3" fill="#ffffff"/><rect x="0" y="720" width="1024" height="3" fill="#ffffff"/><rect x="0" y="732" width="1024" height="3" fill="#ffffff"/><rect x="0" y="744" width="1024" height="3" fill="#ffffff"/><rect x="0" y="756" width="1024" height="3" fill="#ffffff"/><rect x="0" y="768" width="1024" height="3" fill="#ffffff"/><rect x="0" y="780" width="1024" height="3" fill="#ffffff"/><rect x="0" y="792" width="1024" height="3" fill="#ffffff"/><rect x="0" y="804" width="1024" height="3" fill="#ffffff"/><rect x="0" y="816" width="1024" height="3" fill="#ffffff"/><rect x="0" y="828" width="1024" height="3" fill="#ffffff"/><rect x="0" y="840" width="1024" height="3" fill="#ffffff"/><rect x="0" y="852" width="1024" height="3" fill="#ffffff"/><rect x="0" y="864" width="1024" height="3" fill="#ffffff"/><rect x="0" y="876" width="1024" height="3" fill="#ffffff"/><rect x="0" y="888" width="1024" height="3" fill="#ffffff"/><rect x="0" y="900" width="1024" height="3" fill="#ffffff"/><rect x="0" y="912" width="1024" height="3" fill="#ffffff"/><rect x="0" y="924" width="1024" height="3" fill="#ffffff"/><rect x="0" y="936" width="1024" height="3" fill="#ffffff"/><rect x="0" y="948" width="1024" height="3" fill="#ffffff"/><rect x="0" y="960" width="1024" height="3" fill="#ffffff"/><rect x="0" y="972" width="1024" height="3" fill="#ffffff"/><rect x="0" y="984" width="1024" height="3" fill="#ffffff"/><rect x="0" y="996" width="1024" height="3" fill="#ffffff"/><rect x="0" y="1008" width="1024" height="3" fill="#ffffff"/><rect x="0" y="1020" width="1024" height="3" fill="#ffffff"/>
+    </g>
+    <!-- RGB split -->
+    <g transform="translate(-16 4)" opacity="0.85">
+      <rect width="1024" height="1024" fill="#22d3ee" mask="url(#face)"/>
+    </g>
+    <g transform="translate(16 -4)" opacity="0.85">
+      <rect width="1024" height="1024" fill="#e040fb" mask="url(#face)"/>
+    </g>
+    <!-- crest: a waveform -->
+    <g filter="url(#glow)">
+      <rect x="308.5" y="255.6" width="19" height="121.7" rx="9.5" fill="url(#crest)"/>
+      <rect x="336.2" y="180.3" width="19" height="165.3" rx="9.5" fill="url(#crest)"/>
+      <rect x="363.9" y="153.9" width="19" height="169.1" rx="9.5" fill="url(#crest)"/>
+      <rect x="391.6" y="101.8" width="19" height="204.7" rx="9.5" fill="url(#crest)"/>
+      <rect x="419.4" y="96.5" width="19" height="198.0" rx="9.5" fill="url(#crest)"/>
+      <rect x="447.1" y="52.7" width="19" height="233.6" rx="9.5" fill="url(#crest)"/>
+      <rect x="474.8" y="62.6" width="19" height="218.9" rx="9.5" fill="url(#crest)"/>
+      <rect x="502.5" y="30.0" width="19" height="250.0" rx="9.5" fill="url(#crest)"/>
+      <rect x="530.2" y="62.6" width="19" height="218.9" rx="9.5" fill="url(#crest)"/>
+      <rect x="557.9" y="52.7" width="19" height="233.6" rx="9.5" fill="url(#crest)"/>
+      <rect x="585.6" y="96.5" width="19" height="198.0" rx="9.5" fill="url(#crest)"/>
+      <rect x="613.4" y="101.8" width="19" height="204.7" rx="9.5" fill="url(#crest)"/>
+      <rect x="641.1" y="153.9" width="19" height="169.1" rx="9.5" fill="url(#crest)"/>
+      <rect x="668.8" y="180.3" width="19" height="165.3" rx="9.5" fill="url(#crest)"/>
+      <rect x="696.5" y="255.6" width="19" height="121.7" rx="9.5" fill="url(#crest)"/>
+    </g>
+    <!-- helmet -->
+    <rect width="1024" height="1024" fill="url(#helm)" mask="url(#face)"/>
+    <rect width="1024" height="1024" fill="url(#shine)" mask="url(#face)" opacity="0.6"/>
+    <!-- brow ridge -->
+    <path d="M 300 470 C 380 430 644 430 724 470" stroke="#1a0f1e" stroke-opacity="0.28" stroke-width="7" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>

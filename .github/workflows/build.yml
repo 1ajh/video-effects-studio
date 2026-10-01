@@ -40,12 +40,12 @@ jobs:
 
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath VideoEffectsStudio-windows.zip
+        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath SRLEStudio-windows.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: VideoEffectsStudio-windows.zip
+          path: SRLEStudio-windows.zip
 
   build-linux:
     runs-on: ubuntu-latest
@@ -71,12 +71,12 @@ jobs:
           build/linux/x64/release/bundle/ffmpeg -hide_banner -version | head -1
 
       - name: Package
-        run: tar -czf VideoEffectsStudio-linux.tar.gz -C build/linux/x64/release/bundle .
+        run: tar -czf SRLEStudio-linux.tar.gz -C build/linux/x64/release/bundle .
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: VideoEffectsStudio-linux.tar.gz
+          path: SRLEStudio-linux.tar.gz
 
   build-macos:
     runs-on: macos-latest
@@ -100,7 +100,7 @@ jobs:
               unzip -o -q "ff/$arch/$tool.zip" -d "ff/$arch"
             done
           done
-          APP="build/macos/Build/Products/Release/Video Effects Studio.app"
+          APP="build/macos/Build/Products/Release/SRLE Studio.app"
           for tool in ffmpeg ffprobe; do
             lipo -create -output "$APP/Contents/MacOS/$tool" "ff/arm64/$tool" "ff/amd64/$tool"
             chmod +x "$APP/Contents/MacOS/$tool"
@@ -112,14 +112,14 @@ jobs:
       - name: Package DMG
         run: |
           mkdir dmg
-          cp -R "build/macos/Build/Products/Release/Video Effects Studio.app" dmg/
+          cp -R "build/macos/Build/Products/Release/SRLE Studio.app" dmg/
           ln -s /Applications dmg/Applications
-          hdiutil create -volname "Video Effects Studio" -srcfolder dmg -ov -format UDZO VideoEffectsStudio-macos.dmg
+          hdiutil create -volname "SRLE Studio" -srcfolder dmg -ov -format UDZO SRLEStudio-macos.dmg
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: VideoEffectsStudio-macos.dmg
+          path: SRLEStudio-macos.dmg
 
   release:
     needs: [build-windows, build-linux, build-macos]
@@ -152,9 +152,9 @@ jobs:
           tag_name: ${{ steps.tag.outputs.name }}
           target_commitish: ${{ github.sha }}
           files: |
-            artifacts/windows/VideoEffectsStudio-windows.zip
-            artifacts/linux/VideoEffectsStudio-linux.tar.gz
-            artifacts/macos/VideoEffectsStudio-macos.dmg
+            artifacts/windows/SRLEStudio-windows.zip
+            artifacts/linux/SRLEStudio-linux.tar.gz
+            artifacts/macos/SRLEStudio-macos.dmg
           fail_on_unmatched_files: false
           generate_release_notes: true
           # Tags like v2.0.0-dev.1 are test builds: published as pre-releases,

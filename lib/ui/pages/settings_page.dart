@@ -275,8 +275,9 @@ class SettingsPage extends StatelessWidget {
                 icon: Icons.info_outline,
                 children: [
                   const Text(
-                    'Video Effects Studio — logo-editing style effects, G-Majors, vocoders and compilations, powered by FFmpeg. '
-                    'Effect recipes are inspired by the Logo Editing Wiki and the original NotSoBot tags.',
+                    'SRLE Studio (Sparta Remix & Logo Editing) — Sparta remixes from your own videos, logo-editing '
+                    'effects, G-Majors, vocoders and compilations, powered by FFmpeg. Effect recipes are inspired by the '
+                    'Logo Editing Wiki and the original NotSoBot tags; Sparta patterns by the Sparta Remix Wiki.',
                     style: TextStyle(fontSize: 12.5, color: AppColors.muted, height: 1.5),
                   ),
                   const SizedBox(height: 10),
@@ -296,7 +297,8 @@ class SettingsPage extends StatelessWidget {
                       OutlinedButton.icon(
                         onPressed: () => showLicensePage(
                           context: context,
-                          applicationName: 'Video Effects Studio',
+                          applicationName: 'SRLE Studio',
+                          applicationIcon: Image.asset('assets/branding/logo_256.png', width: 56, height: 56),
                           applicationVersion: updates.version,
                         ),
                         icon: const Icon(Icons.description_outlined, size: 16),

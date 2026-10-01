@@ -1,9 +1,10 @@
 name: video_effects_studio
 description: >-
-  Desktop video effects studio for logo-editing style effects — G-Majors,
-  vocoders, glitches, pitch chords — with previews and effect compilations.
+  SRLE Studio (Sparta Remix & Logo Editing): Sparta remixes from your own
+  videos over real bases, plus logo-editing effects — G-Majors, vocoders,
+  glitches, pitch chords — with previews and effect compilations.
 publish_to: 'none'
-version: 2.0.0-dev.3+5
+version: 2.0.0-dev.4+6
 
 environment:
   sdk: '>=3.9.0 <4.0.0'
@@ -48,6 +49,7 @@ flutter:
     - assets/fonts/Inter-ExtraBold.ttf
     - bases/catalog.json
     - bases/transcriptions/
+    - assets/branding/logo_256.png
 
   fonts:
     - family: Inter

@@ -10,7 +10,7 @@ class MainFlutterWindow: NSWindow {
     // minimum the layout is designed for.
     self.setContentSize(NSSize(width: 1440, height: 900))
     self.contentMinSize = NSSize(width: 1100, height: 680)
-    self.title = "Video Effects Studio"
+    self.title = "SRLE Studio"
     self.center()
 
     RegisterGeneratedPlugins(registry: flutterViewController)

@@ -67,7 +67,7 @@ String formatDuration(double seconds, {bool precise = false}) {
   return '$m:${s.floor().toString().padLeft(2, '0')}';
 }
 
-/// Keeps the last [keep] segments of a long path: `…/Videos/VideoEffectsStudio`.
+/// Keeps the last [keep] segments of a long path: `…/Videos/SRLE Studio`.
 String shortPath(String path, {int keep = 2}) {
   final parts = p.split(path).where((s) => s.isNotEmpty && s != p.separator).toList();
   if (parts.length <= keep + 1) return path;

@@ -90,11 +90,11 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.ajh" "\0"
-            VALUE "FileDescription", "video_effects_studio" "\0"
+            VALUE "FileDescription", "SRLE Studio" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "video_effects_studio" "\0"
+            VALUE "InternalName", "srle_studio" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.ajh. All rights reserved." "\0"
-            VALUE "OriginalFilename", "video_effects_studio.exe" "\0"
+            VALUE "OriginalFilename", "srle_studio.exe" "\0"
             VALUE "ProductName", "video_effects_studio" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

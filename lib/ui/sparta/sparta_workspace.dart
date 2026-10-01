@@ -138,7 +138,7 @@ class _Header extends StatelessWidget {
                   message ??
                       (c.hasResult
                           ? 'Change anything — the preview updates by itself.'
-                          : 'Follows a real base exactly: its hits, drums and sections, with your line as the samples.'),
+                          : 'Follows a real base exactly: its hits, bass line, chords, drums and sections, with your line as the samples.'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: c.error != null ? AppColors.danger : AppColors.muted),
@@ -241,8 +241,9 @@ class _Onboarding extends StatelessWidget {
               width: 560,
               child: Text(
                 'Pick a real base and the remix follows it exactly: the pitch sample plays the base\'s own hits '
-                '(tuned to its key), the chorus plays your line\'s words in the Sparta Remix Wiki\'s patterns, the '
-                'percussion lands on its drums. Every sample is cut from your sources.',
+                '(tuned to its key), the bass its bass line and the pads its chords, the chorus plays your line\'s '
+                'words in the Sparta Remix Wiki\'s patterns, the percussion lands on its drums. Every sample is cut '
+                'from your sources.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.muted, height: 1.45),
               ),
