@@ -243,13 +243,22 @@ class Charter {
         }
       } else if (s.kind == SectionKind.intro && choice.words == null) {
         // A long intro (many modern bases open with 16 bars or more) plays
-        // the chorus once the quote is over.
+        // the chorus once the quote is over. Intro parts in a row (a project
+        // whose parts change every few bars) count as one intro.
+        var first = i, last = i;
+        while (first > 0 && sections[first - 1].kind == SectionKind.intro) {
+          first--;
+        }
+        while (last + 1 < sections.length && sections[last + 1].kind == SectionKind.intro) {
+          last++;
+        }
+        final runEnd = math.min(songEnd, sections[last].endBeat);
         final bar = t.beatsPerBar.toDouble();
-        final from = s.startBeat + ((quoteBeats / bar).ceil() * bar).clamp(2 * bar, double.infinity);
-        if (s.endBeat - from >= 4 * bar) {
+        final from = sections[first].startBeat + ((quoteBeats / bar).ceil() * bar).clamp(2 * bar, double.infinity);
+        if (runEnd - from >= 4 * bar) {
           final chorus = lib.classic(PatternKind.words, 'chorus');
           if (chorus != null) {
-            for (final h in chorus.looped(((s.endBeat - from) * 4).roundToDouble())) {
+            for (final h in chorus.looped(((runEnd - from) * 4).roundToDouble())) {
               add(ChartNote(role: SampleRole.word, beat: from + h.step / 4, length: h.length / 4, slot: h.slot));
             }
           }

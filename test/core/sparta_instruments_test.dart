@@ -116,6 +116,27 @@ void main() {
       expect(short.where((n) => n.role == SampleRole.word && n.beat < 16), isEmpty);
     });
 
+    test('intro parts in a row count as one long intro', () {
+      // A project whose parts change every 2-4 bars: 16 bars of intro.
+      final t = BaseTranscription(
+        bpm: 140,
+        rootKey: 62,
+        lengthBeats: 80,
+        sections: const [
+          Section(SectionKind.intro, 0, 8),
+          Section(SectionKind.intro, 8, 24),
+          Section(SectionKind.intro, 24, 40),
+          Section(SectionKind.intro, 40, 64),
+          Section(SectionKind.epicness, 64, 80),
+        ],
+      );
+      final chart = Charter().write(t, quoteBeats: 10);
+      final words = chart.where((n) => n.role == SampleRole.word && n.beat < 64).toList();
+      expect(words.first.beat, 12, reason: 'from the bar after the quote');
+      expect(words.map((n) => n.beat ~/ 16).toSet(), containsAll([0, 1, 2, 3]), reason: 'through the whole intro');
+      expect(chart.where((n) => n.role == SampleRole.quote), hasLength(1));
+    });
+
     test('awesomeness sections keep the chorus words', () {
       final t = BaseTranscription(
         bpm: 140,
