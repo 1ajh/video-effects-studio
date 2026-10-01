@@ -90,7 +90,8 @@ def keaton():
                   'Keaton (Funtastic Power!)',
                   'https://keaton-world.com/content/music/2007/'
                   'Funtastic_Power_-_300_This_is_Sparta_EXTENDED_instrumental_base.mp3',
-                  'https://keaton-world.com/music.php', "Keaton's World", featured=True)]
+                  'https://keaton-world.com/music.php', "Keaton's World",
+                  size=2142545, sha1='457bbe5f433ec2c2e8be8b21cc20256afb6043cf', featured=True)]
 
 
 def _core(name):

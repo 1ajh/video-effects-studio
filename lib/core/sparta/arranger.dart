@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../audio/audio_buffer.dart';
 import '../audio/dsp.dart';
+import '../audio/psola.dart';
 import '../audio/synth.dart';
 import 'base.dart';
 import 'model.dart';
@@ -18,6 +19,22 @@ enum MasterMode {
   final String blurb;
 }
 
+/// How the pitched samples (pitch, bass, pads) are moved to each note.
+enum PitchRender {
+  stretch(
+    'Stretch',
+    "Re-pitched with its length kept, like FL Studio's stretch mode: no chipmunk voices, every note as long as written",
+  ),
+  resample(
+    'Resample + crossfades',
+    'Sped up or slowed down like a sampler (pitch and speed change together), with automatic crossfades between notes',
+  );
+
+  const PitchRender(this.label, this.blurb);
+  final String label;
+  final String blurb;
+}
+
 class MixSettings {
   const MixSettings({
     this.master = MasterMode.clean,
@@ -25,9 +42,11 @@ class MixSettings {
     this.laneDb = const {},
     this.reverb = 0.12,
     this.quoteDuckDb = 5,
+    this.pitchRender = PitchRender.stretch,
   });
 
   final MasterMode master;
+  final PitchRender pitchRender;
   final double baseDb;
   final Map<SampleRole, double> laneDb;
 
@@ -37,14 +56,20 @@ class MixSettings {
   /// How far the base dips under the quote.
   final double quoteDuckDb;
 
-  MixSettings copyWith({MasterMode? master, double? baseDb, Map<SampleRole, double>? laneDb, double? reverb}) =>
-      MixSettings(
-        master: master ?? this.master,
-        baseDb: baseDb ?? this.baseDb,
-        laneDb: laneDb ?? this.laneDb,
-        reverb: reverb ?? this.reverb,
-        quoteDuckDb: quoteDuckDb,
-      );
+  MixSettings copyWith({
+    MasterMode? master,
+    double? baseDb,
+    Map<SampleRole, double>? laneDb,
+    double? reverb,
+    PitchRender? pitchRender,
+  }) => MixSettings(
+    master: master ?? this.master,
+    baseDb: baseDb ?? this.baseDb,
+    laneDb: laneDb ?? this.laneDb,
+    reverb: reverb ?? this.reverb,
+    quoteDuckDb: quoteDuckDb,
+    pitchRender: pitchRender ?? this.pitchRender,
+  );
 }
 
 /// A sample hit on the remix timeline (also what the visuals are cut from).
@@ -76,7 +101,8 @@ class PlacedEvent {
   final double start;
   final double duration;
 
-  /// Playback-rate multiplier (sampler transposition: pitch and speed).
+  /// Playback-rate multiplier (sampler transposition: pitch and speed);
+  /// 1 for stretched notes, which keep their speed.
   final double rate;
   final int semitone;
   final double velocity;
@@ -89,7 +115,7 @@ class PlacedEvent {
 }
 
 /// Stems written next to the master.
-enum Stem { base, pitch, words, drums, quote }
+enum Stem { base, pitch, bass, pads, words, drums, quote }
 
 class RemixMix {
   RemixMix({required this.master, required this.stems, required this.events, required this.lufs, required this.peakDb});
@@ -132,6 +158,8 @@ class Arranger {
 
   static const _laneGain = {
     SampleRole.pitch: 0.52,
+    SampleRole.bass: 0.5,
+    SampleRole.pad: 0.2,
     SampleRole.word: 0.5,
     SampleRole.kick: 0.5,
     SampleRole.snare: 0.42,
@@ -139,13 +167,18 @@ class Arranger {
     SampleRole.quote: 0.75,
   };
 
+  /// The remix ends with the base: its music plus a short ring-out (the
+  /// base's own tail, when it has audio).
   double get _length {
+    final end = base.durationSeconds;
     final chartEnd = base.chart.fold<double>(0, (m, n) => math.max(m, base.seconds(n.end)));
-    var len = math.max(base.durationSeconds, chartEnd + 1.5);
+    var len = math.max(end, chartEnd) + 1.0;
     final a = baseAudio;
-    if (a != null) len = math.max(len, math.min(a.duration - base.audioOffset, base.durationSeconds + 16));
+    if (a != null) len = math.max(len, math.min(a.duration - base.audioOffset, end + 3.0));
     return len;
   }
+
+  bool _stretched(SampleRole role) => role.isPitched && settings.pitchRender == PitchRender.stretch;
 
   /// Schedules every chart note: which sample, when, how long, what rate.
   List<PlacedEvent> schedule() {
@@ -180,7 +213,8 @@ class Arranger {
           };
         }
         final sample = list[variant];
-        final rate = math.pow(2, n.semitone / 12).toDouble();
+        final stretch = _stretched(role);
+        final rate = stretch ? 1.0 : math.pow(2, n.semitone / 12).toDouble();
         final natural = sample.audio.length / sampleRate / rate;
         final lengthBeats = role.isPercussion ? math.min(next - n.beat, 4.0) : math.min(n.length, next - n.beat);
         final seconds = math.min(natural, base.seconds(lengthBeats));
@@ -218,31 +252,56 @@ class Arranger {
     final events = schedule();
     final laneBus = {for (final r in SampleRole.values) r: Float32List(frames * 2)};
     final cache = <String, Float32List>{};
-    final release = (0.012 * sampleRate).round();
+    final resampled = settings.pitchRender == PitchRender.resample;
+    // Resample mode crossfades pitched notes into each other; otherwise a
+    // short release just de-clicks the cut.
+    int releaseOf(SampleRole r) => ((r.isPitched && resampled ? 0.025 : 0.012) * sampleRate).round();
+    int attackOf(SampleRole r) => r.isPitched && resampled ? (0.006 * sampleRate).round() : 24;
+    String keyOf(PlacedEvent e) => _stretched(e.role) && e.semitone != 0
+        ? '${e.role.index}/${e.variant}/s${e.semitone}'
+        : '${e.role.index}/${e.variant}/${e.rate.toStringAsFixed(5)}';
+
+    // How much of each voice the notes need (stretched voices are rendered once).
+    final needs = <String, int>{};
+    for (final e in events) {
+      final k = keyOf(e);
+      needs[k] = math.max(needs[k] ?? 0, (e.duration * sampleRate).round() + releaseOf(e.role));
+    }
 
     for (final e in events) {
       final sample = samples[e.role]![e.variant];
-      final needed = (e.duration * sampleRate).round() + release;
-      final key = '${e.role.index}/${e.variant}/${e.rate.toStringAsFixed(5)}';
+      final release = releaseOf(e.role);
+      final key = keyOf(e);
       var voice = cache[key];
-      if (voice == null || voice.length < needed) {
-        voice = (e.rate - 1).abs() < 1e-6
-            ? Float32List.fromList(sample.audio.sublist(0, math.min(sample.audio.length, needed)))
-            : resample(sample.audio, e.rate, sampleRate: sampleRate, maxFrames: needed);
+      if (voice == null) {
+        final needed = needs[key]!;
+        if (_stretched(e.role) && e.semitone != 0) {
+          voice = _stretchVoice(sample, e.semitone, needed);
+        } else if ((e.rate - 1).abs() < 1e-6) {
+          voice = Float32List.fromList(sample.audio.sublist(0, math.min(sample.audio.length, needed)));
+        } else {
+          voice = resample(sample.audio, e.rate, sampleRate: sampleRate, maxFrames: needed);
+        }
         cache[key] = voice;
       }
       final body = math.min(voice.length, (e.duration * sampleRate).round());
       final len = math.min(voice.length, body + release);
       final hit = Float32List.fromList(voice.sublist(0, len));
-      // Tiny attack de-click and a release fade where the note is cut.
-      for (var i = 0; i < math.min(24, hit.length); i++) {
-        hit[i] *= i / 24;
+      // Attack de-click and a release fade where the note is cut (in resample
+      // mode long enough to crossfade into the next note).
+      final attack = attackOf(e.role);
+      for (var i = 0; i < math.min(attack, hit.length); i++) {
+        hit[i] *= i / attack;
       }
       for (var i = body; i < len; i++) {
         hit[i] *= 1 - (i - body) / math.max(1, len - body);
       }
       final gain = _laneGain[e.role]! * dbToGain(settings.laneDb[e.role] ?? 0) * (0.35 + 0.65 * e.velocity);
-      final pan = e.role == SampleRole.hat ? 0.3 : 0.0;
+      final pan = switch (e.role) {
+        SampleRole.hat => 0.3,
+        SampleRole.pad => const [-0.35, 0.35, 0.0][e.semitone.abs() % 3],
+        _ => 0.0,
+      };
       mixInto(laneBus[e.role]!, hit, (e.start * sampleRate).round(), gain: gain, pan: pan);
     }
 
@@ -252,6 +311,15 @@ class Arranger {
     _eq(pitch, [Biquad.highPass(sr, 90), Biquad.peak(sr, 3000, 2.5, q: 0.8)]);
     compress(pitch, sampleRate, channels: 2, thresholdDb: -20, ratio: 3, attackMs: 3, releaseMs: 90, makeupDb: 3);
     _haas(pitch, 0.012, -9);
+
+    final bass = laneBus[SampleRole.bass]!;
+    _eq(bass, [Biquad.highPass(sr, 32), Biquad.lowShelf(sr, 110, 2), Biquad.lowPass(sr, 3200)]);
+    compress(bass, sampleRate, channels: 2, thresholdDb: -18, ratio: 4, attackMs: 5, releaseMs: 100, makeupDb: 3);
+
+    final pads = laneBus[SampleRole.pad]!;
+    _eq(pads, [Biquad.highPass(sr, 160), Biquad.lowPass(sr, 3500)]);
+    compress(pads, sampleRate, channels: 2, thresholdDb: -22, ratio: 2, attackMs: 30, releaseMs: 250, makeupDb: 2);
+    _haas(pads, 0.018, -6);
 
     final words = laneBus[SampleRole.word]!;
     _eq(words, [Biquad.highPass(sr, 100), Biquad.peak(sr, 4000, 2, q: 0.9)]);
@@ -274,7 +342,7 @@ class Arranger {
     if (settings.reverb > 0) {
       final send = Float32List(frames * 2);
       for (var i = 0; i < send.length; i++) {
-        send[i] = (pitch[i] + words[i] * 0.5) * settings.reverb;
+        send[i] = (pitch[i] + words[i] * 0.5 + pads[i] * 1.5) * settings.reverb;
       }
       final wet = Reverb(sampleRate: sampleRate, room: 0.7, damp: 0.45).process(send);
       for (var i = 0; i < wet.length; i++) {
@@ -300,7 +368,7 @@ class Arranger {
 
     // Master ------------------------------------------------------------------
     final master = Float32List(frames * 2);
-    for (final x in [baseBus, pitch, words, drums, quote]) {
+    for (final x in [baseBus, pitch, bass, pads, words, drums, quote]) {
       for (var i = 0; i < master.length; i++) {
         master[i] += x[i];
       }
@@ -314,6 +382,8 @@ class Arranger {
           ? {
               Stem.base: AudioBuffer(baseBus, sampleRate: sampleRate, channels: 2),
               Stem.pitch: AudioBuffer(pitch, sampleRate: sampleRate, channels: 2),
+              Stem.bass: AudioBuffer(bass, sampleRate: sampleRate, channels: 2),
+              Stem.pads: AudioBuffer(pads, sampleRate: sampleRate, channels: 2),
               Stem.words: AudioBuffer(words, sampleRate: sampleRate, channels: 2),
               Stem.drums: AudioBuffer(drums, sampleRate: sampleRate, channels: 2),
               Stem.quote: AudioBuffer(quote, sampleRate: sampleRate, channels: 2),
@@ -323,6 +393,45 @@ class Arranger {
       lufs: lufs,
       peakDb: gainToDb(out.peak()),
     );
+  }
+
+  /// [sample] moved [semitones] with its length kept (TD-PSOLA from its
+  /// tuned root; formants stay put, so voices don't turn into chipmunks).
+  Float32List _stretchVoice(ProcessedSample sample, int semitones, int frames) {
+    final src = sample.audio;
+    // The sample is sustained already: analyse only what the note needs.
+    final take = math.min(src.length, frames + (0.1 * sampleRate).round());
+    final piece = Float32List.sublistView(src, 0, take);
+    final root = sample.rootHz > 0 ? sample.rootHz : null;
+    final out = root == null
+        ? null
+        : psolaCorrect(
+            Float32List.fromList(piece),
+            sampleRate,
+            targetHz: root * math.pow(2, semitones / 12).toDouble(),
+            lengthSeconds: math.min(frames, take) / sampleRate,
+          );
+    if (out != null) {
+      // Match the original's level (overlap-add can drift a little).
+      final a = _rms(piece), b = _rms(out.audio);
+      if (a > 1e-6 && b > 1e-6) {
+        final g = (a / b).clamp(0.5, 2.0);
+        for (var i = 0; i < out.audio.length; i++) {
+          out.audio[i] *= g;
+        }
+      }
+      return out.audio;
+    }
+    return resample(src, math.pow(2, semitones / 12).toDouble(), sampleRate: sampleRate, maxFrames: frames);
+  }
+
+  static double _rms(Float32List x) {
+    if (x.isEmpty) return 0;
+    var e = 0.0;
+    for (final v in x) {
+      e += v * v;
+    }
+    return math.sqrt(e / x.length);
   }
 
   void _master(Float32List x) {

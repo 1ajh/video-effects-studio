@@ -6,6 +6,8 @@ import 'dart:math' as math;
 /// What a sample does in the remix.
 enum SampleRole {
   pitch('Pitch', 'A voiced syllable, tuned to the base\'s key, that plays the base\'s own hit notes'),
+  bass('Bass', 'A voiced syllable tuned low that plays the base\'s bass line'),
+  pad('Pads', 'A voiced syllable stretched into a pad that plays the base\'s chords'),
   word('Chorus words', 'The words of your line (1, 2, 3…), raw, in the wiki\'s section patterns'),
   kick('Kick', 'A thump from your source, on the base\'s kicks'),
   snare('Snare', 'A crack from your source, on the base\'s snares and claps'),
@@ -18,8 +20,9 @@ enum SampleRole {
 
   bool get isPercussion => this == kick || this == snare || this == hat;
 
-  /// Transposed per note (only the pitch sample: chorus words play raw).
-  bool get isPitched => this == pitch;
+  /// Transposed per note (the pitch, bass and pad samples: chorus words
+  /// play raw).
+  bool get isPitched => this == pitch || this == bass || this == pad;
 }
 
 /// A note on one of the remix's sample lanes.
@@ -158,6 +161,18 @@ class SampleCandidate {
     sourceIndex: sourceIndex,
     start: s,
     end: e,
+    score: score,
+    f0: f0,
+    details: details,
+    slot: slot,
+  );
+
+  /// The same sound used for another lane (a pitch candidate as the bass).
+  SampleCandidate withRole(SampleRole r) => SampleCandidate(
+    role: r,
+    sourceIndex: sourceIndex,
+    start: start,
+    end: end,
     score: score,
     f0: f0,
     details: details,

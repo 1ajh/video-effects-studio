@@ -129,6 +129,7 @@ class SpartaEngine {
     required this.cacheDir,
     BaseLibrary? library,
     this.bundledCatalog = '{"version":1,"bases":[]}',
+    this.bundledFile,
   }) : library = library ?? BaseLibrary(cacheDir: p.join(cacheDir, 'sparta'));
 
   final String ffmpegPath;
@@ -137,6 +138,10 @@ class SpartaEngine {
 
   /// The catalog shipped with the app (bases/catalog.json).
   final String bundledCatalog;
+
+  /// Reads a file shipped with the app from bases/ (checked transcriptions),
+  /// null when it isn't there.
+  final Future<String?> Function(String path)? bundledFile;
 
   static const projectExtensions = {'.flp', '.flm', '.mid', '.midi'};
 
@@ -201,15 +206,27 @@ class SpartaEngine {
     BaseSource source, {
     BaseTranscription? fixed,
     void Function(String status, double? fraction)? onStatus,
+    bool Function()? cancelled,
   }) async {
+    // Stops early when another base was picked meanwhile.
+    void check() {
+      if (cancelled?.call() ?? false) throw DownloadCancelled();
+    }
+
     switch (source) {
       case LibraryBaseSource(:final base):
         onStatus?.call('Downloading ${base.name}…', 0);
-        final audioPath = await library.audio(base, onProgress: (f) => onStatus?.call('Downloading ${base.name}…', f));
+        final audioPath = await library.audio(
+          base,
+          onProgress: (f) => onStatus?.call('Downloading ${base.name}…', f),
+          cancelled: cancelled,
+        );
+        check();
         final sha = await BaseLibrary.sha1Of(audioPath);
         onStatus?.call('Loading the base…', null);
         final audio = await AudioBuffer.decode(ffmpegPath, audioPath, channels: 2);
-        BaseTranscription? auto = await library.checkedTranscription(base);
+        check();
+        BaseTranscription? auto = await library.checkedTranscription(base, bundled: bundledFile);
         ChartSource? project;
         AudioBaseAnalysis? analysis;
         if (auto == null && base.flpUrl != null) {
@@ -221,10 +238,12 @@ class SpartaEngine {
             auto = await _fromProject(read, audio, const {}, null);
           }
         }
+        check();
         if (auto == null) {
           onStatus?.call('Transcribing the base (tempo, drums, hits, sections)…', null);
           (auto, analysis) = await _fromAudio(audioPath, sha, name: base.name);
         }
+        check();
         auto = auto.copyWith(baseName: base.name, maker: base.maker, catalogId: base.id, audioSha1: sha);
         return _prepared(source, auto, fixed, audio, audioPath, project: project, analysis: analysis);
       case final ProjectBaseSource s:
@@ -252,12 +271,16 @@ class SpartaEngine {
         final sha = await BaseLibrary.sha1Of(s.audioPath);
         final catalog = await library.catalog(bundledCatalog, refresh: false);
         final known = catalog.bySha1(sha);
-        BaseTranscription? auto = known == null ? null : await library.checkedTranscription(known);
+        BaseTranscription? auto = known == null
+            ? null
+            : await library.checkedTranscription(known, bundled: bundledFile);
         AudioBaseAnalysis? analysis;
+        check();
         if (auto == null) {
           onStatus?.call('Transcribing the base (tempo, drums, hits, sections)…', null);
           (auto, analysis) = await _fromAudio(s.audioPath, sha, name: known?.name ?? s.name, bpm: s.bpm);
         }
+        check();
         auto = auto.copyWith(
           baseName: known?.name ?? s.name,
           maker: known?.maker,

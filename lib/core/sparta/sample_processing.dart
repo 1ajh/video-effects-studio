@@ -63,6 +63,7 @@ class EnhanceOptions {
     this.sustainSeconds = 4.0,
     this.forceOctave,
     this.tuning = PitchTuning.hard,
+    this.bassOctave = 2,
   });
 
   /// Doubled-attack splice on chorus words (the Chorus Crisp technique: it
@@ -80,6 +81,9 @@ class EnhanceOptions {
   final int? forceOctave;
   final PitchTuning tuning;
 
+  /// Octave of the bass sample's root (2: D2 for a D base).
+  final int bassOctave;
+
   EnhanceOptions copyWith({
     bool? chorusCrisp,
     bool? layerDrums,
@@ -87,15 +91,17 @@ class EnhanceOptions {
     int? forceOctave,
     bool clearOctave = false,
     PitchTuning? tuning,
+    int? bassOctave,
   }) => EnhanceOptions(
     chorusCrisp: chorusCrisp ?? this.chorusCrisp,
     layerDrums: layerDrums ?? this.layerDrums,
     sustainSeconds: sustainSeconds ?? this.sustainSeconds,
     forceOctave: clearOctave ? null : (forceOctave ?? this.forceOctave),
     tuning: tuning ?? this.tuning,
+    bassOctave: bassOctave ?? this.bassOctave,
   );
 
-  String get key => '$chorusCrisp|$layerDrums|$sustainSeconds|$forceOctave|${tuning.name}';
+  String get key => '$chorusCrisp|$layerDrums|$sustainSeconds|$forceOctave|${tuning.name}|$bassOctave';
 }
 
 /// Turns raw candidate audio into Sparta-ready instruments. Every sample is
@@ -119,6 +125,10 @@ class SampleEnhancer {
     switch (c.role) {
       case SampleRole.pitch:
         return _pitch(c, x, sourcePath);
+      case SampleRole.bass:
+        return _bass(c, x, sourcePath);
+      case SampleRole.pad:
+        return _pad(c, x, sourcePath);
       case SampleRole.word:
         return _word(c, x, sourcePath);
       case SampleRole.kick:
@@ -153,6 +163,73 @@ class SampleEnhancer {
     compress(out, sr, thresholdDb: -20, ratio: 3, attackMs: 3, releaseMs: 80);
     fade(out, sr, inMs: 1.5, outMs: 30);
     _normalize(out, 0.9);
+    return ProcessedSample(
+      role: c.role,
+      audio: out,
+      candidate: c,
+      sourcePath: src,
+      rootHz: corrected.targetHz,
+      naturalSeconds: natural,
+    );
+  }
+
+  /// The bass sample: the voice re-pitched down to the root in the bass
+  /// register (D2 for a D base) with its formants lowered a little, so it
+  /// sounds like a giant singing the bass line.
+  ProcessedSample _bass(SampleCandidate c, Float32List x, String src) {
+    Biquad.highPass(sr.toDouble(), 70).process(x);
+    var body = trimSilence(x, sr, thresholdDb: -38);
+    if (body.isEmpty) body = x;
+    final natural = body.length / sr;
+    final midi = 12 * (options.bassOctave + 1) + rootPc;
+    final corrected = psolaCorrect(
+      body,
+      sr,
+      targetHz: 440 * math.pow(2, (midi - 69) / 12).toDouble(),
+      pitchClass: rootPc,
+      lengthSeconds: math.max(natural, options.sustainSeconds),
+      formant: 0.85,
+    );
+    if (corrected == null) throw UntunableSample(c);
+    final out = corrected.audio;
+    Biquad.lowPass(sr.toDouble(), 2600).process(out);
+    Biquad.lowShelf(sr.toDouble(), 140, 4).process(out);
+    saturate(out, drive: 1.3);
+    compress(out, sr, thresholdDb: -18, ratio: 3, attackMs: 4, releaseMs: 90);
+    fade(out, sr, inMs: 2, outMs: 30);
+    _normalize(out, 0.9);
+    return ProcessedSample(
+      role: c.role,
+      audio: out,
+      candidate: c,
+      sourcePath: src,
+      rootHz: corrected.targetHz,
+      naturalSeconds: natural,
+    );
+  }
+
+  /// The pad: the vowel held and smoothed into a soft sustained tone on the
+  /// root (chords stack it), darkened like a stretched pad sample.
+  ProcessedSample _pad(SampleCandidate c, Float32List x, String src) {
+    Biquad.highPass(sr.toDouble(), 120).process(x);
+    var body = trimSilence(x, sr, thresholdDb: -38);
+    if (body.isEmpty) body = x;
+    final natural = body.length / sr;
+    final o = options.forceOctave;
+    final corrected = psolaCorrect(
+      body,
+      sr,
+      targetHz: o == null ? null : 440 * math.pow(2, (12 * (o + 1) + rootPc - 69) / 12).toDouble(),
+      pitchClass: rootPc,
+      lengthSeconds: math.max(natural, options.sustainSeconds * 1.5),
+    );
+    if (corrected == null) throw UntunableSample(c);
+    final out = corrected.audio;
+    Biquad.lowPass(sr.toDouble(), 2900).process(out);
+    Biquad.lowPass(sr.toDouble(), 2900).process(out);
+    compress(out, sr, thresholdDb: -24, ratio: 2.5, attackMs: 20, releaseMs: 200);
+    fade(out, sr, inMs: 60, outMs: 250);
+    _normalize(out, 0.85);
     return ProcessedSample(
       role: c.role,
       audio: out,

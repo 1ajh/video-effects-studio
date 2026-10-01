@@ -22,7 +22,7 @@ enum PitchMode {
 /// Choices for one section, edited in the review. Null fields keep the
 /// default for the section's kind.
 class SectionChoice {
-  const SectionChoice({this.words, this.pitch, this.pitchPattern, this.variant = 0});
+  const SectionChoice({this.words, this.pitch, this.pitchPattern, this.variant = 0, this.bass, this.pads});
 
   /// Word pattern id (`custom:<notation>` for a typed one), or '' for no
   /// chorus words here.
@@ -36,19 +36,30 @@ class SectionChoice {
   /// Random-mode take for this section (re-roll).
   final int variant;
 
-  bool get isDefault => words == null && pitch == null && pitchPattern == null && variant == 0;
+  /// Whether the bass sample plays here (null: when the base has a bass).
+  final bool? bass;
+
+  /// Whether the pads play here (null: in choruses and the epicness).
+  final bool? pads;
+
+  bool get isDefault =>
+      words == null && pitch == null && pitchPattern == null && variant == 0 && bass == null && pads == null;
 
   SectionChoice copyWith({
     String? words,
     PitchMode? pitch,
     String? pitchPattern,
     int? variant,
+    bool? bass,
+    bool? pads,
     bool clearWords = false,
   }) => SectionChoice(
     words: clearWords ? null : (words ?? this.words),
     pitch: pitch ?? this.pitch,
     pitchPattern: pitchPattern ?? this.pitchPattern,
     variant: variant ?? this.variant,
+    bass: bass ?? this.bass,
+    pads: pads ?? this.pads,
   );
 
   Map<String, Object?> toJson() => {
@@ -56,6 +67,8 @@ class SectionChoice {
     if (pitch != null) 'pitch': pitch!.name,
     if (pitchPattern != null) 'pitchPattern': pitchPattern,
     if (variant != 0) 'variant': variant,
+    'bass': ?bass,
+    'pads': ?pads,
   };
 
   factory SectionChoice.fromJson(Map<String, Object?> j) => SectionChoice(
@@ -63,6 +76,8 @@ class SectionChoice {
     pitch: PitchMode.values.asNameMap()[j['pitch']],
     pitchPattern: j['pitchPattern'] as String?,
     variant: (j['variant'] as num?)?.toInt() ?? 0,
+    bass: j['bass'] as bool?,
+    pads: j['pads'] as bool?,
   );
 }
 
@@ -133,11 +148,13 @@ class RandomOptions {
 ///
 /// * the pitch sample plays the base's own hit notes (not in the chorus,
 ///   which is words only);
+/// * the bass sample plays the base's bass line, the pads its chords;
 /// * chorus words play the wiki's word pattern for each section (the
 ///   standard chorus, DunDunDenDen's 1-2-3A-3B, the epicness and madness
 ///   patterns) and nothing where the wiki has none;
 /// * percussion samples land on the base's kicks, snares and hats;
-/// * the whole line (the quote) opens the intro.
+/// * the whole line (the quote) opens the intro;
+/// * nothing plays after the base ends.
 class Charter {
   Charter({PatternLibrary? library}) : lib = library ?? PatternLibrary.instance;
 
@@ -161,8 +178,14 @@ class Charter {
     SectionKind.dundundenden ||
     SectionKind.epicness ||
     SectionKind.madness => lib.classic(PatternKind.words, kind.wiki),
+    // The awesomeness patterns are pitch patterns over a chorus.
+    SectionKind.awesomeness => lib.classic(PatternKind.words, 'chorus'),
     _ => null,
   };
+
+  /// Whether the pads play in a section by default.
+  static bool padsByDefault(SectionKind kind) =>
+      kind == SectionKind.chorus || kind == SectionKind.awesomeness || kind == SectionKind.epicness;
 
   /// Word patterns that fit a section (for the review's picker).
   List<Pattern> wordChoices(SectionKind kind) => [
@@ -180,29 +203,42 @@ class Charter {
     ];
   }
 
+  /// Writes the chart. [muted] lanes are left out (the instrument toggles).
   List<ChartNote> write(
     BaseTranscription t, {
     Map<int, SectionChoice> choices = const {},
     RandomOptions random = const RandomOptions(),
     bool pitchInChorus = false,
+    Set<SampleRole> muted = const {},
   }) {
     final out = <ChartNote>[];
     final sections = t.sections.isEmpty ? [Section(SectionKind.other, 0, t.lengthBeats)] : t.sections;
+    // Nothing plays after the base ends.
+    final songEnd = t.lengthBeats;
     var quoted = false;
     for (var i = 0; i < sections.length; i++) {
       final choice = choices[i] ?? const SectionChoice();
       final rng = math.Random(random.seed * 7919 + i * 104729 + choice.variant * 31 + 17);
-      var s = sections[i];
+      final real = sections[i];
+      if (real.startBeat >= songEnd - 1e-6) break;
+      var s = real.endBeat > songEnd ? Section(real.kind, real.startBeat, songEnd, name: real.name) : real;
       // Random layout: the section plays another part's patterns.
       if (random.enabled && random.layout && _shuffled.contains(s.kind) && rng.nextDouble() < 0.5) {
         s = Section(_shuffled[rng.nextInt(_shuffled.length)], s.startBeat, s.endBeat, name: s.name);
+      }
+      void add(ChartNote n) {
+        if (muted.contains(n.role)) return;
+        if (n.beat < s.startBeat - 1e-6 || n.beat >= s.endBeat - 1e-6) return;
+        final len = math.min(n.length, s.endBeat - n.beat);
+        if (len <= 1e-6) return;
+        out.add(len == n.length ? n : n.copyWith(length: len));
       }
 
       // Chorus words.
       final words = _wordsFor(s.kind, choice, random, rng);
       if (words != null) {
         for (final h in words.looped((s.lengthBeats * 4).roundToDouble())) {
-          out.add(ChartNote(role: SampleRole.word, beat: s.startBeat + h.step / 4, length: h.length / 4, slot: h.slot));
+          add(ChartNote(role: SampleRole.word, beat: s.startBeat + h.step / 4, length: h.length / 4, slot: h.slot));
         }
       }
 
@@ -217,45 +253,60 @@ class Charter {
           pitchPattern = options[rng.nextInt(options.length)];
         }
       }
+      // A section without hits of its own plays its wiki pattern instead.
+      if (mode == PitchMode.base && !t.hits.any((h) => s.contains(h.beat)) && t.chords.isNotEmpty) {
+        mode = PitchMode.pattern;
+      }
       switch (mode) {
         case PitchMode.off:
           break;
         case PitchMode.base:
           for (final h in t.hits) {
-            if (h.beat >= s.startBeat - 1e-6 && h.beat < s.endBeat - 1e-6) {
-              out.add(
-                ChartNote(
-                  role: SampleRole.pitch,
-                  beat: h.beat,
-                  length: math.min(h.length, s.endBeat - h.beat),
-                  semitone: h.semitone,
-                  velocity: h.velocity,
-                ),
-              );
-            }
+            add(
+              ChartNote(
+                role: SampleRole.pitch,
+                beat: h.beat,
+                length: h.length,
+                semitone: h.semitone,
+                velocity: h.velocity,
+              ),
+            );
           }
         case PitchMode.pattern:
           final p = pitchPattern ?? lib.classic(PatternKind.pitch, s.kind.wiki);
           if (p != null) {
             for (final h in _pitchLoop(p, s)) {
-              out.add(
+              final beat = s.startBeat + h.step / 4;
+              add(
                 ChartNote(
                   role: SampleRole.pitch,
-                  beat: s.startBeat + h.step / 4,
+                  beat: beat,
                   length: h.length / 4,
-                  semitone: h.semitone,
+                  semitone: fitToChords(t, h.semitone, beat, s.startBeat),
                 ),
               );
             }
           }
       }
 
+      // Bass: the base's bass line (or its chord roots).
+      if (choice.bass ?? true) {
+        for (final n in bassLine(t, s)) {
+          add(ChartNote(role: SampleRole.bass, beat: n.beat, length: n.length, semitone: n.semitone));
+        }
+      }
+
+      // Pads: the base's chords.
+      if (choice.pads ?? padsByDefault(s.kind)) {
+        for (final n in padChords(t, s)) {
+          add(ChartNote(role: SampleRole.pad, beat: n.beat, length: n.length, semitone: n.semitone, velocity: 0.8));
+        }
+      }
+
       // Percussion on the base's own drums.
       for (final role in const [SampleRole.kick, SampleRole.snare, SampleRole.hat]) {
         for (final b in t.drums(role)) {
-          if (b >= s.startBeat - 1e-6 && b < s.endBeat - 1e-6) {
-            out.add(ChartNote(role: role, beat: b, length: 0.5));
-          }
+          add(ChartNote(role: role, beat: b, length: 0.5));
         }
       }
 
@@ -263,11 +314,99 @@ class Charter {
       if (!quoted && (s.kind == SectionKind.intro || i == 0)) {
         quoted = true;
         final len = s.kind == SectionKind.intro ? s.lengthBeats : math.min(s.lengthBeats, 8.0);
-        out.add(ChartNote(role: SampleRole.quote, beat: s.startBeat, length: math.max(1, len)));
+        add(ChartNote(role: SampleRole.quote, beat: s.startBeat, length: math.max(1, len)));
       }
     }
     out.sort((a, b) => a.beat != b.beat ? a.beat.compareTo(b.beat) : a.role.index.compareTo(b.role.index));
     return out;
+  }
+
+  /// The classic Sparta progression wiki patterns are written over: D, D#,
+  /// C, D# (0, 1, -2, 1), two beats each.
+  static const classicProgression = [0, 1, -2, 1];
+
+  /// Moves a wiki pattern's note onto the base's own chords (a progression
+  /// twist): written over the classic progression, it keeps its distance to
+  /// the chord's root. Unchanged where the base's chords aren't known.
+  static int fitToChords(BaseTranscription t, int semitone, double beat, double sectionStart) {
+    final root = t.chordRootAt(beat);
+    if (root == null) return semitone;
+    final classic = classicProgression[(((beat - sectionStart) / 2 + 1e-6).floor()) % 4];
+    return semitone - classic + _wrap(root);
+  }
+
+  /// A root in -6 … 5 (closest to the key's root).
+  static int _wrap(int semitone) => ((semitone + 6) % 12 + 12) % 12 - 6;
+
+  /// What the bass plays in [s], in semitones from the bass sample's root
+  /// (the key's root two octaves down, D2 for a D base): the base's own bass
+  /// line, else its chord roots (eighths with octaves in a chorus, held
+  /// elsewhere).
+  static List<GuideNote> bassLine(BaseTranscription t, Section s) {
+    final own = [
+      for (final n in t.bass)
+        if (s.contains(n.beat)) n,
+    ];
+    if (own.isNotEmpty) {
+      // Bass notes are written from the key's root; the bass sample sits two
+      // octaves under it.
+      return [for (final n in own) n.copyWith(semitone: _bassRange(n.semitone + 24))];
+    }
+    final chords = _chordSpans(t, s);
+    if (chords.isEmpty) return const [];
+    final eighths = s.kind == SectionKind.chorus || s.kind == SectionKind.awesomeness;
+    final out = <GuideNote>[];
+    for (final (start, end, root) in chords) {
+      final r = _wrap(root);
+      if (!eighths) {
+        out.add(GuideNote(start, end - start, r));
+        continue;
+      }
+      var k = 0;
+      for (var b = start; b < end - 1e-6; b += 0.5, k++) {
+        out.add(GuideNote(b, math.min(0.5, end - b), k.isOdd ? r + 12 : r));
+      }
+    }
+    return out;
+  }
+
+  static int _bassRange(int semitone) {
+    var v = semitone;
+    while (v < -7) {
+      v += 12;
+    }
+    while (v > 19) {
+      v -= 12;
+    }
+    return v;
+  }
+
+  /// The chord voices the pads play in [s] (semitones from the key's root,
+  /// the chord's root kept within a fourth of it).
+  static List<GuideNote> padChords(BaseTranscription t, Section s) {
+    final out = <GuideNote>[];
+    for (final (start, end, root) in _chordSpans(t, s)) {
+      final shift = _wrap(root) - root;
+      for (final c in t.chords) {
+        if ((c.beat - start).abs() < 1e-6) {
+          out.add(GuideNote(start, math.min(c.length, end - start), c.semitone + shift));
+        }
+      }
+    }
+    return out;
+  }
+
+  /// The chords starting in [s]: (start, end, root).
+  static List<(double, double, int)> _chordSpans(BaseTranscription t, Section s) {
+    final starts = <double, int>{};
+    final ends = <double, double>{};
+    for (final c in t.chords) {
+      if (!s.contains(c.beat)) continue;
+      starts[c.beat] = math.min(starts[c.beat] ?? c.semitone, c.semitone);
+      ends[c.beat] = math.max(ends[c.beat] ?? c.end, c.end);
+    }
+    final keys = starts.keys.toList()..sort();
+    return [for (final k in keys) (k, math.min(ends[k]!, s.endBeat), starts[k]!)];
   }
 
   static const _shuffled = [

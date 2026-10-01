@@ -65,13 +65,19 @@ void main() {
   });
 
   test('schedules every chart note with sampler transposition and choke', () {
-    final events = Arranger(base: base, samples: samples, baseAudio: baseAudio).schedule();
-    for (final role in SampleRole.values) {
+    const resampled = MixSettings(pitchRender: PitchRender.resample);
+    final events = Arranger(base: base, samples: samples, baseAudio: baseAudio, settings: resampled).schedule();
+    for (final role in samples.keys) {
       expect(events.where((e) => e.role == role), isNotEmpty, reason: role.name);
     }
     for (final e in events) {
       expect(e.rate, closeTo(math.pow(2, e.semitone / 12), 1e-9));
       expect(e.duration, greaterThan(0));
+    }
+    // Stretched (the default), pitched notes keep their speed.
+    final stretched = Arranger(base: base, samples: samples, baseAudio: baseAudio).schedule();
+    for (final e in stretched.where((e) => e.role == SampleRole.pitch)) {
+      expect(e.rate, 1);
     }
     // A hit is cut by the next hit on its lane.
     for (final role in const [SampleRole.pitch, SampleRole.word]) {
@@ -123,26 +129,33 @@ void main() {
     expect(clean.stems.keys.toSet(), Stem.values.toSet());
   });
 
-  test("the pitch stem plays the base's hits in its key", () {
-    final mix = Arranger(base: base, samples: samples, baseAudio: baseAudio).mix();
-    final stem = mix.stems[Stem.pitch]!.mono();
-    final root = samples[SampleRole.pitch]!.first.rootHz;
-    // Tuned to D#.
-    expect((69 + 12 * math.log(root / 440) / math.ln2).round() % 12, 3);
-    var checked = 0, inTune = 0;
-    for (final e in mix.events.where((e) => e.role == SampleRole.pitch && e.duration >= 0.2)) {
-      final a = ((e.start + 0.04) * 48000).round();
-      final b = math.min(stem.frames, a + (0.14 * 48000).round());
-      final track = trackPitch(stem.data.sublist(a, b), 48000);
-      if (track == null) continue;
-      checked++;
-      final cents = 1200 * (math.log(track.medianHz / (root * e.rate)) / math.ln2);
-      final folded = ((cents % 1200) + 1200) % 1200;
-      if (math.min(folded, 1200 - folded) < 40) inTune++;
-    }
-    expect(checked, greaterThan(5));
-    expect(inTune / checked, greaterThan(0.8), reason: '$inTune / $checked');
-  });
+  for (final render in PitchRender.values) {
+    test("the pitch stem plays the base's hits in its key (${render.name})", () {
+      final mix = Arranger(
+        base: base,
+        samples: samples,
+        baseAudio: baseAudio,
+        settings: MixSettings(pitchRender: render),
+      ).mix();
+      final stem = mix.stems[Stem.pitch]!.mono();
+      final root = samples[SampleRole.pitch]!.first.rootHz;
+      // Tuned to D#.
+      expect((69 + 12 * math.log(root / 440) / math.ln2).round() % 12, 3);
+      var checked = 0, inTune = 0;
+      for (final e in mix.events.where((e) => e.role == SampleRole.pitch && e.duration >= 0.2)) {
+        final a = ((e.start + 0.04) * 48000).round();
+        final b = math.min(stem.frames, a + (0.14 * 48000).round());
+        final track = trackPitch(stem.data.sublist(a, b), 48000);
+        if (track == null) continue;
+        checked++;
+        final cents = 1200 * (math.log(track.medianHz / (root * math.pow(2, e.semitone / 12))) / math.ln2);
+        final folded = ((cents % 1200) + 1200) % 1200;
+        if (math.min(folded, 1200 - folded) < 40) inTune++;
+      }
+      expect(checked, greaterThan(5));
+      expect(inTune / checked, greaterThan(0.8), reason: '$inTune / $checked');
+    });
+  }
 
   test('the base dips under the quote', () {
     final mix = Arranger(base: base, samples: samples, baseAudio: baseAudio).mix();

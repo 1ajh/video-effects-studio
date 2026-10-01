@@ -5,6 +5,8 @@ import '../theme.dart';
 
 Color laneColor(SampleRole r) => switch (r) {
   SampleRole.pitch => const Color(0xFFA78BFA),
+  SampleRole.bass => const Color(0xFF818CF8),
+  SampleRole.pad => const Color(0xFF60A5FA),
   SampleRole.word => const Color(0xFFF472B6),
   SampleRole.kick => const Color(0xFFFB923C),
   SampleRole.snare => const Color(0xFFFBBF24),
@@ -14,6 +16,8 @@ Color laneColor(SampleRole r) => switch (r) {
 
 IconData laneIcon(SampleRole r) => switch (r) {
   SampleRole.pitch => Icons.music_note,
+  SampleRole.bass => Icons.graphic_eq,
+  SampleRole.pad => Icons.waves,
   SampleRole.word => Icons.record_voice_over_outlined,
   SampleRole.kick => Icons.circle,
   SampleRole.snare => Icons.album_outlined,

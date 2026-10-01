@@ -72,9 +72,15 @@ class SpartaPlayback extends ChangeNotifier {
     _auditioning = null;
     _loaded = path;
     _loadedVersion = version;
-    await player.open(Media(path), play: false);
-    if (keep > Duration.zero) await player.seek(keep);
-    if (play || wasPlaying) await player.play();
+    try {
+      await player.open(Media(path), play: false);
+      if (keep > Duration.zero) await player.seek(keep);
+      if (play || wasPlaying) await player.play();
+    } catch (e) {
+      // A preview replaced while it was opening: the next one loads anyway.
+      debugPrint('Preview load failed: $e');
+      _loaded = null;
+    }
     notifyListeners();
   }
 
@@ -95,7 +101,13 @@ class SpartaPlayback extends ChangeNotifier {
     _auditioning = id;
     _loaded = null;
     notifyListeners();
-    await player.open(Media(path), play: true);
+    try {
+      await player.open(Media(path), play: true);
+    } catch (e) {
+      debugPrint('Audition failed: $e');
+      _auditioning = null;
+      notifyListeners();
+    }
   }
 
   Future<void> stop() async {

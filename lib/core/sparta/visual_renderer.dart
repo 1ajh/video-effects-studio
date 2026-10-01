@@ -46,9 +46,9 @@ enum GridSize {
 /// Which boxes flip on alternate hits, and how.
 enum FlipMode {
   horizontal('Horizontal, every box'),
-  pitchOnly('Horizontal, pitch only'),
+  pitchOnly('Horizontal, pitch / bass / pads only'),
   wordsOnly('Horizontal, chorus words only'),
-  pitchAndWords('Horizontal, pitch and words'),
+  pitchAndWords('Horizontal, pitched samples and words'),
   vertical('Vertical, every box'),
   both('Horizontal + vertical, every box'),
   none('No flips');
@@ -57,9 +57,9 @@ enum FlipMode {
   final String label;
 
   bool appliesTo(SampleRole r) => switch (this) {
-    FlipMode.pitchOnly => r == SampleRole.pitch,
+    FlipMode.pitchOnly => r.isPitched,
     FlipMode.wordsOnly => r == SampleRole.word,
-    FlipMode.pitchAndWords => r == SampleRole.pitch || r == SampleRole.word,
+    FlipMode.pitchAndWords => r.isPitched || r == SampleRole.word,
     FlipMode.none => false,
     _ => true,
   };
@@ -163,19 +163,81 @@ class VisualBox {
   int get hashCode => Object.hash(role, word);
 }
 
-/// The boxes a remix needs: pitch, each chorus word, kick, snare, hat (and
-/// the quote when it has its own box), in that order.
+/// The boxes a remix needs: pitch, bass, pads, each chorus word (and the
+/// quote when it has its own box), then kick, snare and hat.
 List<VisualBox> boxesFor(List<PlacedEvent> events, VisualOptions o) {
+  final (tonal, percussion) = _boxGroups(events, o);
+  return [...tonal, ...percussion];
+}
+
+(List<VisualBox>, List<VisualBox>) _boxGroups(List<PlacedEvent> events, VisualOptions o) {
   final roles = events.map((e) => e.role).toSet();
   final words = {for (final e in events.where((e) => e.role == SampleRole.word)) VisualBox.wordNumber(e.slot)}.toList()
     ..sort();
-  return [
-    if (roles.contains(SampleRole.pitch)) const VisualBox(SampleRole.pitch),
-    for (final w in words) VisualBox(SampleRole.word, word: w),
-    for (final r in const [SampleRole.kick, SampleRole.snare, SampleRole.hat])
-      if (roles.contains(r)) VisualBox(r),
-    if (o.intro == IntroVisual.box && roles.contains(SampleRole.quote)) const VisualBox(SampleRole.quote),
-  ];
+  return (
+    [
+      for (final r in const [SampleRole.pitch, SampleRole.bass, SampleRole.pad])
+        if (roles.contains(r)) VisualBox(r),
+      for (final w in words) VisualBox(SampleRole.word, word: w),
+      if (o.intro == IntroVisual.box && roles.contains(SampleRole.quote)) const VisualBox(SampleRole.quote),
+    ],
+    [
+      for (final r in const [SampleRole.kick, SampleRole.snare, SampleRole.hat])
+        if (roles.contains(r)) VisualBox(r),
+    ],
+  );
+}
+
+/// The grid: how many boxes per side and which cell shows which box. The
+/// percussion sits on the bottom row; everything else fills the grid from
+/// the top. Boxes that don't fit share the last free cell.
+class GridLayout {
+  GridLayout(this.n, this.cells);
+
+  /// Boxes per side.
+  final int n;
+
+  /// Box in each cell (row by row, null: an empty cell).
+  final List<VisualBox?> cells;
+
+  factory GridLayout.of(List<PlacedEvent> events, VisualOptions o) {
+    final (tonal, percussion) = _boxGroups(events, o);
+    final total = tonal.length + percussion.length;
+    var n = o.grid.sideFor(total);
+    // Auto grids grow until the top rows hold every other box.
+    if (o.grid == GridSize.auto) {
+      while (n < 6 && percussion.isNotEmpty && tonal.length > n * (n - 1)) {
+        n++;
+      }
+    }
+    final cells = List<VisualBox?>.filled(n * n, null);
+    final bottom = n * (n - 1);
+    // Percussion: the bottom row, left to right (spare boxes pile on the last cell).
+    for (var i = 0; i < percussion.length; i++) {
+      cells[bottom + math.min(i, n - 1)] ??= percussion[i];
+    }
+    // The rest: top rows first, then any free bottom cells.
+    final free = [
+      for (var c = 0; c < bottom; c++) c,
+      for (var c = bottom; c < n * n; c++)
+        if (cells[c] == null) c,
+    ];
+    for (var i = 0; i < tonal.length && i < free.length; i++) {
+      cells[free[i]] = tonal[i];
+    }
+    return GridLayout(n, cells);
+  }
+
+  /// The cell showing [e] (boxes that didn't get a cell share a neighbour's).
+  int cellOf(PlacedEvent e) {
+    final i = cells.indexWhere((b) => b != null && b.shows(e));
+    if (i >= 0) return i;
+    if (e.role.isPercussion) {
+      final last = cells.lastIndexWhere((b) => b != null && b.role.isPercussion);
+      if (last >= 0) return last;
+    }
+    return cells.lastIndexWhere((b) => b != null && !b.role.isPercussion);
+  }
 }
 
 /// One variant clip: a sample's pictures at a rate / flip / look and size.
@@ -268,8 +330,8 @@ class VisualRenderer {
 
     // Layout -----------------------------------------------------------------
     final minimal = options.style == VisualStyle.minimal;
-    final boxes = minimal ? const <VisualBox>[] : boxesFor(visible, options);
-    final n = minimal ? 1 : options.grid.sideFor(boxes.length);
+    final layout = minimal ? null : GridLayout.of(visible, options);
+    final n = layout?.n ?? 1;
     final cells = n * n;
     final gap = options.style == VisualStyle.modern ? (8 * height / 720).round() : 0;
     final cellW = (((width / n) - 2 * gap).round() ~/ 2) * 2;
@@ -279,11 +341,7 @@ class VisualRenderer {
     bool onTop(PlacedEvent e) => e.role == SampleRole.quote && intro != IntroVisual.box && !minimal;
 
     // Which cell shows each event (extra boxes share the last cell).
-    int cellOf(PlacedEvent e) {
-      if (minimal) return 0;
-      final i = boxes.indexWhere((b) => b.shows(e));
-      return i < 0 ? -1 : math.min(i, cells - 1);
-    }
+    int cellOf(PlacedEvent e) => layout?.cellOf(e) ?? 0;
 
     // Plan every cell's track, collecting the variant clips it needs.
     final variantFrames = <_VariantKey, int>{};
@@ -458,14 +516,12 @@ class VisualRenderer {
     var hue = 0;
     var negate = false;
     if (o.style == VisualStyle.chaos) {
-      hue = e.role == SampleRole.pitch
-          ? ((e.semitone % 12) + 12) % 12 * 30
-          : const [0, 60, 120, 180, 240, 300][hitIndex % 6];
+      hue = e.role.isPitched ? ((e.semitone % 12) + 12) % 12 * 30 : const [0, 60, 120, 180, 240, 300][hitIndex % 6];
       negate = e.role == SampleRole.snare && hitIndex.isOdd;
     }
-    // Pitched hits are transposed pictures too; words, drums and the quote
-    // play at 1×.
-    final semi = e.role == SampleRole.pitch ? e.semitone : 0;
+    // Resampled notes are transposed pictures too (sped up or slowed down
+    // with the sound); stretched notes, words, drums and the quote play at 1×.
+    final semi = e.role.isPitched && (e.rate - 1).abs() > 1e-6 ? e.semitone : 0;
     return _VariantKey(e.role, e.variant, semi, hf, vf, hue, negate, o.style == VisualStyle.modern, w, h);
   }
 

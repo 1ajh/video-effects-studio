@@ -71,6 +71,13 @@ class _StudioAppState extends State<StudioApp> {
     store: widget.store,
     // Decoded here: loadString hands big assets to an isolate.
     loadBundledCatalog: () async => utf8.decode((await rootBundle.load('bases/catalog.json')).buffer.asUint8List()),
+    loadBundledFile: (path) async {
+      try {
+        return utf8.decode((await rootBundle.load('bases/$path')).buffer.asUint8List());
+      } catch (_) {
+        return null;
+      }
+    },
   );
   late final spartaPlayback = SpartaPlayback(available: widget.playerAvailable);
 

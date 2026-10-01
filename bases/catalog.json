@@ -8,7 +8,10 @@
    "collection": "Keaton's World",
    "audio": "https://keaton-world.com/content/music/2007/Funtastic_Power_-_300_This_is_Sparta_EXTENDED_instrumental_base.mp3",
    "page": "https://keaton-world.com/music.php",
-   "featured": true
+   "size": 2142545,
+   "sha1": "457bbe5f433ec2c2e8be8b21cc20256afb6043cf",
+   "featured": true,
+   "transcription": "transcriptions/keaton-sparta-extended.json"
   },
   {
    "id": "flp-archive/deraidos-collab-sparta-eir-base",

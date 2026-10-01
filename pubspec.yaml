@@ -47,6 +47,7 @@ flutter:
   assets:
     - assets/fonts/Inter-ExtraBold.ttf
     - bases/catalog.json
+    - bases/transcriptions/
 
   fonts:
     - family: Inter

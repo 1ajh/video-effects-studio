@@ -77,6 +77,8 @@ class BaseTranscription {
     this.beatsPerBar = 4,
     this.sections = const [],
     this.hits = const [],
+    this.bass = const [],
+    this.chords = const [],
     this.kick = const [],
     this.snare = const [],
     this.hat = const [],
@@ -102,6 +104,15 @@ class BaseTranscription {
   final double lengthBeats;
   final List<Section> sections;
   final List<GuideNote> hits;
+
+  /// The base's bass line (semitones from [rootKey], usually -24 … -12):
+  /// what the bass sample plays.
+  final List<GuideNote> bass;
+
+  /// The base's chords, one note per voice (notes starting together form a
+  /// chord; semitones from [rootKey]): what the pads play, and the
+  /// progression wiki patterns are fitted to.
+  final List<GuideNote> chords;
 
   /// Beats where the base's drums hit.
   final List<double> kick;
@@ -138,6 +149,16 @@ class BaseTranscription {
     orElse: () => sections.isEmpty ? Section(SectionKind.other, 0, lengthBeats) : sections.last,
   );
 
+  /// Root of the chord playing at [beat] (semitones from [rootKey], the
+  /// chord's lowest voice), or null where no chord is known.
+  int? chordRootAt(double beat) {
+    int? best;
+    for (final c in chords) {
+      if (c.beat <= beat + 1e-6 && c.end > beat + 1e-6) best = best == null ? c.semitone : math.min(best, c.semitone);
+    }
+    return best;
+  }
+
   List<double> drums(SampleRole role) => switch (role) {
     SampleRole.kick => kick,
     SampleRole.snare => snare,
@@ -151,6 +172,8 @@ class BaseTranscription {
     double? lengthBeats,
     List<Section>? sections,
     List<GuideNote>? hits,
+    List<GuideNote>? bass,
+    List<GuideNote>? chords,
     List<double>? kick,
     List<double>? snare,
     List<double>? hat,
@@ -170,6 +193,8 @@ class BaseTranscription {
     lengthBeats: lengthBeats ?? this.lengthBeats,
     sections: sections ?? this.sections,
     hits: hits ?? this.hits,
+    bass: bass ?? this.bass,
+    chords: chords ?? this.chords,
     kick: kick ?? this.kick,
     snare: snare ?? this.snare,
     hat: hat ?? this.hat,
@@ -204,6 +229,14 @@ class BaseTranscription {
     'hits': [
       for (final h in hits) [_r(h.beat), _r(h.length), h.semitone],
     ],
+    if (bass.isNotEmpty)
+      'bass': [
+        for (final h in bass) [_r(h.beat), _r(h.length), h.semitone],
+      ],
+    if (chords.isNotEmpty)
+      'chords': [
+        for (final h in chords) [_r(h.beat), _r(h.length), h.semitone],
+      ],
     'kick': [for (final b in kick) _r(b)],
     'snare': [for (final b in snare) _r(b)],
     'hat': [for (final b in hat) _r(b)],
@@ -218,6 +251,10 @@ class BaseTranscription {
     if (j['format'] != format) throw const FormatException('Not a Sparta base transcription.');
     final base = (j['base'] as Map?)?.cast<String, Object?>() ?? const {};
     List<double> beats(Object? v) => [for (final x in (v as List?) ?? const []) (x as num).toDouble()];
+    List<GuideNote> notes(Object? v) => [
+      for (final h in (v as List?) ?? const [])
+        GuideNote(((h as List)[0] as num).toDouble(), (h[1] as num).toDouble(), (h[2] as num).toInt()),
+    ];
     final root = j['root'];
     return BaseTranscription(
       bpm: (j['bpm']! as num).toDouble(),
@@ -227,10 +264,9 @@ class BaseTranscription {
       sections: [
         for (final s in (j['sections'] as List?) ?? const []) Section.fromJson((s as Map).cast<String, Object?>()),
       ],
-      hits: [
-        for (final h in (j['hits'] as List?) ?? const [])
-          GuideNote(((h as List)[0] as num).toDouble(), (h[1] as num).toDouble(), (h[2] as num).toInt()),
-      ],
+      hits: notes(j['hits']),
+      bass: notes(j['bass']),
+      chords: notes(j['chords']),
       kick: beats(j['kick']),
       snare: beats(j['snare']),
       hat: beats(j['hat']),

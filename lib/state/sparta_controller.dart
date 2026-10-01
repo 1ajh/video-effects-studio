@@ -104,9 +104,14 @@ enum SpartaStage { idle, working, ready, failed }
 
 /// State and pipeline of the Sparta Remix mode.
 class SpartaController extends ChangeNotifier {
-  SpartaController(this._engine, {Store? store, Future<String> Function()? loadBundledCatalog})
-    : _store = store,
-      _loadBundled = loadBundledCatalog {
+  SpartaController(
+    this._engine, {
+    Store? store,
+    Future<String> Function()? loadBundledCatalog,
+    Future<String?> Function(String path)? loadBundledFile,
+  }) : _store = store,
+       _loadBundled = loadBundledCatalog,
+       _loadBundledFile = loadBundledFile {
     _engine.addListener(_onEngine);
     _loadOptions();
   }
@@ -114,6 +119,7 @@ class SpartaController extends ChangeNotifier {
   final EngineController _engine;
   final Store? _store;
   final Future<String> Function()? _loadBundled;
+  final Future<String?> Function(String path)? _loadBundledFile;
   SpartaEngine? _sparta;
   String _bundled = '{"version":1,"bases":[]}';
 
@@ -325,13 +331,19 @@ class SpartaController extends ChangeNotifier {
           downloadProgress = f;
           _status(s, f);
         },
+        cancelled: () => t != _token,
       );
       if (t != _token) return;
       prepared = base;
       if (step == SpartaStep.base && readySources == 0) step = SpartaStep.source;
       if (processed.isNotEmpty) await _resampleAndMix(t);
+    } on DownloadCancelled {
+      // Another base was picked meanwhile: nothing to report.
+      return;
     } catch (e) {
-      if (t == _token) baseError = _short(e);
+      // Errors from a base you've already switched away from are dropped.
+      if (t != _token) return;
+      baseError = _short(e);
       rethrow;
     } finally {
       if (t == _token) {
@@ -542,6 +554,16 @@ class SpartaController extends ChangeNotifier {
   /// Pitch also plays in the chorus (off: the chorus is words only).
   bool pitchInChorus = false;
 
+  /// Instruments switched off (everything plays by default).
+  Set<SampleRole> muted = {};
+
+  void setLaneOn(SampleRole role, bool on) {
+    muted = on ? ({...muted}..remove(role)) : {...muted, role};
+    _saveOptions();
+    notifyListeners();
+    if (hasResult) _schedule(_remixOnly);
+  }
+
   SectionChoice choiceAt(int i) => choices[i] ?? const SectionChoice();
 
   void setChoice(int i, SectionChoice c) {
@@ -699,9 +721,7 @@ class SpartaController extends ChangeNotifier {
     final eng = _eng;
     if (eng == null || sourceIndex >= _analyzedPaths.length) return null;
     final audio = await eng.sourceClip(_analyzedPaths[sourceIndex], start, end);
-    final dir = p.join(_engine.cacheDir, 'sparta', 'audition');
-    await Directory(dir).create(recursive: true);
-    final path = p.join(dir, 'clip_${(start * 1000).round()}_${(end * 1000).round()}.wav');
+    final path = await _freshFile('audition', 'clip_${(start * 1000).round()}_${(end * 1000).round()}');
     await audio.writeWav(path);
     return path;
   }
@@ -748,6 +768,22 @@ class SpartaController extends ChangeNotifier {
         options.insert(0, best);
       }
       picks[role] = RolePick(role, options);
+    }
+    // The bass and the pads are voiced syllables too: by default another
+    // vowel than the pitch sample's (the longest for the pads), so the
+    // instruments sound and look different.
+    final pitch = picks[SampleRole.pitch];
+    if (pitch != null) {
+      final voiced = pitch.options;
+      picks[SampleRole.bass] = RolePick(SampleRole.bass, [for (final c in voiced) c.withRole(SampleRole.bass)])
+        ..index = voiced.length > 1 ? 1 : 0;
+      final spare = [
+        for (var i = 0; i < math.min(voiced.length, 5); i++)
+          if (i != 1 && !(i == 0 && voiced.length > 2)) i,
+      ];
+      final longest = spare.isEmpty ? 0 : spare.reduce((a, b) => voiced[b].duration > voiced[a].duration ? b : a);
+      picks[SampleRole.pad] = RolePick(SampleRole.pad, [for (final c in voiced) c.withRole(SampleRole.pad)])
+        ..index = longest;
     }
   }
 
@@ -825,11 +861,35 @@ class SpartaController extends ChangeNotifier {
     final list = processed[role];
     if (list == null || which >= list.length) return null;
     final s = list[which];
-    final dir = p.join(_engine.cacheDir, 'sparta', 'audition');
-    await Directory(dir).create(recursive: true);
-    final path = p.join(dir, '${role.name}_${s.slot}_$which.wav');
+    final path = await _freshFile('audition', '${role.name}_${s.slot}_$which');
     await AudioBuffer(s.audio, sampleRate: ProcessedSample.sampleRate).writeWav(path);
     return path;
+  }
+
+  int _fileCounter = 0;
+
+  /// A new WAV path in the cache's [folder] (never one the player could
+  /// still have open); older ones there are cleared when they can be.
+  Future<String> _freshFile(String folder, String stem) async {
+    final dir = Directory(p.join(_engine.cacheDir, 'sparta', folder));
+    await dir.create(recursive: true);
+    final stamp = '${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}${(_fileCounter++).toRadixString(36)}';
+    final keep = {previewPath};
+    try {
+      final old = await dir.list().where((e) => e is File && e.path.endsWith('.wav')).toList();
+      final age = {for (final f in old) f.path: f.statSync().modified};
+      old.sort((a, b) => age[a.path]!.compareTo(age[b.path]!));
+      // Keep the newest few: one of them may be playing.
+      for (final f in old.take(math.max(0, old.length - 6))) {
+        if (keep.contains(f.path)) continue;
+        try {
+          await f.delete();
+        } catch (_) {
+          // Still open somewhere: try again next time.
+        }
+      }
+    } catch (_) {}
+    return p.join(dir.path, '${stem}_$stamp.wav');
   }
 
   // ===========================================================================
@@ -850,7 +910,9 @@ class SpartaController extends ChangeNotifier {
   }
 
   void setMixSettings(MixSettings m) {
+    final renderChanged = m.pitchRender != mixSettings.pitchRender;
     mixSettings = m;
+    if (renderChanged) _saveOptions();
     notifyListeners();
     if (hasResult) _schedule(_remixOnly);
   }
@@ -885,8 +947,13 @@ class SpartaController extends ChangeNotifier {
           layerDrums: e['layerDrums'] as bool? ?? false,
           tuning: PitchTuning.values.asNameMap()[e['tuning']] ?? PitchTuning.hard,
           forceOctave: (e['octave'] as num?)?.toInt(),
+          bassOctave: (e['bassOctave'] as num?)?.toInt() ?? 2,
         );
       }
+      final m = j['muted'];
+      if (m is List) muted = {for (final r in m) ?SampleRole.values.asNameMap()[r]};
+      final render = PitchRender.values.asNameMap()[j['pitchRender']];
+      if (render != null) mixSettings = mixSettings.copyWith(pitchRender: render);
     } catch (_) {}
   }
 
@@ -898,7 +965,10 @@ class SpartaController extends ChangeNotifier {
       'layerDrums': enhance.layerDrums,
       'tuning': enhance.tuning.name,
       'octave': ?enhance.forceOctave,
+      'bassOctave': enhance.bassOctave,
     },
+    'muted': [for (final r in muted) r.name],
+    'pitchRender': mixSettings.pitchRender.name,
   });
 
   // ===========================================================================
@@ -939,7 +1009,7 @@ class SpartaController extends ChangeNotifier {
   List<ChartNote> get chart {
     final t = transcription;
     if (t == null) return const [];
-    return Charter().write(t, choices: choices, random: random, pitchInChorus: pitchInChorus);
+    return Charter().write(t, choices: choices, random: random, pitchInChorus: pitchInChorus, muted: muted);
   }
 
   void _onEngine() {
@@ -960,6 +1030,7 @@ class SpartaController extends ChangeNotifier {
       ffmpegPath: _engine.toolkit!.ffmpegPath,
       cacheDir: _engine.cacheDir,
       bundledCatalog: _bundled,
+      bundledFile: _loadBundledFile,
     );
   }
 
@@ -1077,18 +1148,18 @@ class SpartaController extends ChangeNotifier {
     final roles = picks.keys.toList();
     for (var i = 0; i < roles.length; i++) {
       final pick = picks[roles[i]]!;
-      _status(
-        pick.role == SampleRole.pitch
-            ? 'Tuning the pitch sample to ${base.transcription.rootName}…'
-            : 'Cleaning up the ${pick.role.label.toLowerCase()} sample…',
-        (i + 1) / (roles.length + 1),
-      );
+      _status(switch (pick.role) {
+        SampleRole.pitch => 'Tuning the pitch sample to ${base.transcription.rootName}…',
+        SampleRole.bass => 'Tuning the bass sample down to ${base.transcription.rootName}${enhance.bassOctave}…',
+        SampleRole.pad => 'Stretching the pad sample…',
+        _ => 'Cleaning up the ${pick.role.label.toLowerCase()} sample…',
+      }, (i + 1) / (roles.length + 1));
       final list = <ProcessedSample>[];
       var s = await prepare(pick.current);
       if (t != _token) return;
       // A pitch pick that can't be tuned: move on to the next candidate.
       var tries = 0;
-      while (s == null && pick.role == SampleRole.pitch && tries < pick.options.length - 1) {
+      while (s == null && pick.role.isPitched && tries < pick.options.length - 1) {
         tries++;
         pick
           ..index = (pick.index + 1) % pick.options.length
@@ -1131,10 +1202,9 @@ class SpartaController extends ChangeNotifier {
     );
     if (t != _token) return;
     _status('Writing preview…');
-    final dir = p.join(_engine.cacheDir, 'sparta');
-    await Directory(dir).create(recursive: true);
-    // Alternate between two files so a playing preview is never overwritten.
-    final path = p.join(dir, 'preview_${previewVersion % 2}.wav');
+    // A new file every time: the player may still hold the last one open
+    // (on Windows an open file can't be overwritten).
+    final path = await _freshFile('preview', 'preview');
     await m.master.writeWav(path);
     if (t != _token) return;
     prepared = charted;

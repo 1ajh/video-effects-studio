@@ -114,6 +114,12 @@ class BaseCatalog {
   }
 }
 
+/// A download given up because something newer was asked for.
+class DownloadCancelled implements Exception {
+  @override
+  String toString() => 'Cancelled';
+}
+
 class LibraryException implements Exception {
   LibraryException(this.message);
   final String message;
@@ -167,8 +173,14 @@ class BaseLibrary {
   }
 
   /// Local copy of [b]'s audio, downloaded on first use.
-  Future<String> audio(CatalogBase b, {void Function(double fraction)? onProgress}) =>
-      _fetch(b.audioUrl, p.join(_dir, '${b.fileStem}${b.extension}'), expectedSize: b.size, onProgress: onProgress);
+  Future<String> audio(CatalogBase b, {void Function(double fraction)? onProgress, bool Function()? cancelled}) =>
+      _fetch(
+        b.audioUrl,
+        p.join(_dir, '${b.fileStem}${b.extension}'),
+        expectedSize: b.size,
+        onProgress: onProgress,
+        cancelled: cancelled,
+      );
 
   /// Local copy of [b]'s FL Studio project, if it has one.
   Future<String?> project(CatalogBase b) async {
@@ -177,22 +189,33 @@ class BaseLibrary {
     return _fetch(url, p.join(_dir, '${b.fileStem}.flp'));
   }
 
-  /// The checked transcription for [b], if the repository has one.
-  Future<BaseTranscription?> checkedTranscription(CatalogBase b) async {
+  /// The checked transcription for [b], if the repository has one: the
+  /// newest from the repository, else the last one fetched, else the copy
+  /// shipped with the app ([bundled] reads it).
+  Future<BaseTranscription?> checkedTranscription(
+    CatalogBase b, {
+    Future<String?> Function(String path)? bundled,
+  }) async {
     final path = b.transcriptionPath;
     if (path == null) return null;
     final local = File(p.join(_dir, 'transcriptions', p.basename(path)));
     try {
       final r = await _client.get(Uri.parse('$repoRaw$path')).timeout(const Duration(seconds: 10));
       if (r.statusCode == 200) {
+        BaseTranscription.decode(r.body);
         await local.parent.create(recursive: true);
         await local.writeAsString(r.body);
       }
     } catch (_) {
-      // Use the cached copy below.
+      // Offline or not published yet: use a local copy below.
     }
-    if (!await local.exists()) return null;
-    return BaseTranscription.decode(await local.readAsString());
+    try {
+      if (await local.exists()) return BaseTranscription.decode(await local.readAsString());
+    } catch (_) {
+      // A broken cache: fall back to the shipped copy.
+    }
+    final shipped = await bundled?.call(path);
+    return shipped == null ? null : BaseTranscription.decode(shipped);
   }
 
   /// Whether [b] is already downloaded.
@@ -207,11 +230,13 @@ class BaseLibrary {
     String path, {
     int? expectedSize,
     void Function(double fraction)? onProgress,
+    bool Function()? cancelled,
   }) async {
     final file = File(path);
     if (await file.exists() && (expectedSize == null || await file.length() == expectedSize)) return path;
     await file.parent.create(recursive: true);
-    final part = File('$path.part');
+    // A unique partial file: an abandoned download can't collide with this one.
+    final part = File('$path.${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}.part');
     final request = http.Request('GET', Uri.parse(url));
     final response = await _client.send(request).timeout(const Duration(seconds: 30));
     if (response.statusCode != 200) {
@@ -220,8 +245,13 @@ class BaseLibrary {
     final total = response.contentLength ?? expectedSize;
     final sink = part.openWrite();
     var got = 0;
+    var stopped = false;
     try {
       await for (final chunk in response.stream) {
+        if (cancelled?.call() ?? false) {
+          stopped = true;
+          break;
+        }
         sink.add(chunk);
         got += chunk.length;
         if (total != null && total > 0) onProgress?.call(got / total);
@@ -229,8 +259,29 @@ class BaseLibrary {
     } finally {
       await sink.close();
     }
-    if (got == 0) throw LibraryException('The download was empty.');
-    await part.rename(path);
+    if (stopped || got == 0) {
+      try {
+        await part.delete();
+      } catch (_) {}
+      if (stopped) throw DownloadCancelled();
+      throw LibraryException('The download was empty.');
+    }
+    // Another download may have finished it meanwhile.
+    if (await file.exists() && (expectedSize == null || await file.length() == expectedSize)) {
+      try {
+        await part.delete();
+      } catch (_) {}
+      return path;
+    }
+    try {
+      await part.rename(path);
+    } on FileSystemException {
+      // The file is in use (being read by an earlier load): copy over it later.
+      if (!await file.exists()) rethrow;
+      try {
+        await part.delete();
+      } catch (_) {}
+    }
     onProgress?.call(1);
     return path;
   }
