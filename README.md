@@ -1,6 +1,6 @@
 # Video Effects Studio
 
-A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, Sparta pitches, glitches, and 140+ more. Preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos. And the **Sparta Remix Generator** turns any video of someone talking into a full, mixed and mastered Sparta remix, video included.
+A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, Sparta pitches, voice changers, glitches, and 180+ more. Preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos. And the **Sparta Remix Generator** turns any video of someone talking into a full, mixed and mastered Sparta remix, video included.
 
 ![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-7C5CFF)
 ![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
@@ -9,12 +9,13 @@ A desktop studio for **logo-editing style video effects**: G-Majors, vocoders, C
 
 ## What's inside
 
-- **148 effects in 9 categories**, every one rendered through real FFmpeg in CI:
-  - **Logo Editing**: recipes documented by the logo-editing community (Low Voice, Luig Group, CoNfUsIoN, Devil's Blast, Chorded, Crying, Angry, Weird Code, Awake, Hitting, Sponge, Pitch Black, Crazy Diamond, V-Major, You Wiggled, DMA Diamond Major and more)
-  - **G-Majors & Chords**: G-Major 2 / 4, the NotSoBot G-Majors, and a **Chord Builder** where you type the pitch of every duplicated track
-  - **Vocoders & Robots**: real robotized voices (FFT phase vocoding), stacked into chords with the matching looks. The old version only tinted the video.
+- **185 effects in 10 categories**, every one rendered through real FFmpeg in CI, and level-matched so each comes out loud and even:
+  - **Logo Editing**: recipes checked against their [Logo Editing Wiki](https://logo-editing.fandom.com) pages (Low Voice, Luig Group, CoNfUsIoN, Devil's Blast, Chorded, Crying, Angry, Weird Code, Awake, Hitting, Sponge, Pitch Black, Crazy Diamond, V-Major, You Wiggled X, Sick, I KILLED X, Low G-Major Voice and more), with their gradient maps, mirrors, hue settings and pitches as written
+  - **G-Majors & Chords**: G-Major 2 / 4, the NotSoBot G-Majors, a **Chord Builder** where you type the pitch of every duplicated track, plus a harmonizer, doubler, barbershop quartet, sus4, major seventh, augmented and whole-tone chords
+  - **Vocoders & Robots**: real robotized voices (FFT phase vocoding), stacked into chords with the matching looks, and the **IL Vocodex presets** the community builds effects from (Robot, Helium, Elderly, More Testosterone, Group, Power, Old School, Clearer, Backing Voices, Droplets, Autovocoding, Reverb, For Drums) with their wiki gradient maps
+  - **Voice Changer**: giant, baby, monster, demon, old man, radio, walkie-talkie, cave, stadium announcer, drunk, dark lord, helium balloon, cartoon, slow-mo, space radio, in a can
   - **Color, Distortion, Glitch, Audio, Time & Speed**: mirrors, swirl, pinch, bulge, kaleidoscope, CRT, VHS, RGB split, datamosh melt, 8-bit, deep fried, vaporwave, bass boost, earrape, 8D audio, reverse, boomerang, stutter, nightcore…
-  - **YTPMV tools**: a real **Sparta Sequencer** (plays one sample as a melody), **Beat Chop** ("1 1 2 1 3 3 4 4") and **Pitch Ladder**
+  - **YTPMV tools**: a real **Sparta Sequencer** (plays one sample as the chorus pitch 0 0 +1 +1 −2 −2 +1 +1, any of the Sparta Remix Wiki's pitch patterns, or your own, in time), **Beat Chop** ("1 1 2 1 3 3 4 4") and **Pitch Ladder**
 - **Before / after preview**: every effect is rendered as a short preview automatically. Watch it on its own or side by side with the original.
 - **Effect thumbnails**: the effect list shows each effect applied to *your* clip.
 - **Compilations**: effects play one after another in order. Add effects one by one, a whole category, **every effect**, or **N random** ones; shuffle and drag to reorder. Optionally play the original first, and label each segment with a **name overlay** or a **title card**. Each item keeps its own settings.

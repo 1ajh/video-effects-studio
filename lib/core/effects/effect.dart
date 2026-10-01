@@ -156,6 +156,7 @@ enum EffectCategory {
   color('Color & Look', 'Color grading, film looks and stylized palettes'),
   distort('Distortion & Warp', 'Mirrors, waves, swirls, lenses and kaleidoscopes'),
   glitch('Glitch & Retro', 'VHS, CRT, RGB splits, datamosh-ish trails'),
+  voice('Voice Changer', 'Popular voice effects: giant, baby, monster, radio, cave, cartoon and more'),
   audio('Audio FX', 'Pitch, bass, echo, crush and friends'),
   time('Time & Speed', 'Speed ramps, reversal, stutters and loops'),
   ytpmv('YTPMV Tools', 'Sparta pitches, sequencers and remix helpers'),

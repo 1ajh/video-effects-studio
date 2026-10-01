@@ -6,6 +6,7 @@ import 'library/distort_glitch.dart';
 import 'library/g_majors.dart';
 import 'library/logo_editing.dart';
 import 'library/vocoders.dart';
+import 'library/voices.dart';
 
 /// Every effect the app knows about: the built-in library plus the user's
 /// custom effects.
@@ -18,6 +19,9 @@ class EffectRegistry {
     ...logoEditingEffects,
     ...gMajorEffects,
     ...vocoderEffects,
+    ...vocodexEffects,
+    ...pitchChordEffects,
+    ...voiceEffects,
     ...colorEffects,
     ...distortEffects,
     ...glitchEffects,
