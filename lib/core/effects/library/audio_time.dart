@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import '../../ffmpeg/blocks.dart';
 import '../../ffmpeg/filter_graph.dart';
+import '../../sparta/model.dart';
+import '../../sparta/patterns.dart';
 import '../effect.dart';
 import 'helpers.dart';
 
@@ -277,23 +279,28 @@ final List<Effect> ytpmvEffects = [
     id: 'sparta_sequencer',
     name: 'Sparta Sequencer',
     description:
-        'Takes one short sample from the clip and plays it as a melody from a pitch sequence — the Sparta / YTPMV staple.',
+        'Plays one short sample from the clip as a Sparta pitch pattern: the chorus pitch (0 0 +1 +1 -2 -2 +1 +1) '
+        'or any pattern from the Sparta Remix Wiki, or your own, in time at a BPM.',
     category: EffectCategory.ytpmv,
-    credit: 'NotSoBot "sparta pitch" (reworked)',
-    keywords: const ['sparta', 'ytpmv', 'melody'],
-    params: const [
-      EffectParam.text('pitches', 'Pitch sequence', value: '0 0 7 0 5 5 3 2', hint: 'Semitones per note (max 32)'),
-      EffectParam.decimal('start', 'Sample start', value: 0.0, min: 0.0, max: 600.0, step: 0.05, unit: 's'),
-      EffectParam.decimal('note', 'Note length', value: 0.25, min: 0.08, max: 2.0, step: 0.01, unit: 's'),
-      EffectParam.integer('repeats', 'Repeats', value: 2, min: 1, max: 8),
-      EffectParam.toggle('flash', 'Hue flash per note', value: true),
+    credit: 'Patterns: Sparta Remix Wiki',
+    keywords: const ['sparta', 'ytpmv', 'melody', 'pitch pattern', 'chorus', 'madness', 'epicness'],
+    params: [
+      EffectParam.choice('pattern', 'Pattern', value: sequencerPatternNames.first, options: sequencerPatternNames),
+      const EffectParam.text(
+        'custom',
+        'Custom pattern',
+        value: '0 0 +1 +1 -2 -2 +1 +1',
+        hint: 'Used with "Custom": semitones in wiki notation (* longer, _ rest)',
+      ),
+      const EffectParam.decimal('bpm', 'Tempo', value: 140, min: 60, max: 240, step: 1, unit: 'BPM'),
+      const EffectParam.decimal('start', 'Sample start', value: 0.0, min: 0.0, max: 600.0, step: 0.05, unit: 's'),
+      const EffectParam.decimal('sample', 'Sample length', value: 0.4, min: 0.05, max: 2.0, step: 0.01, unit: 's'),
+      const EffectParam.integer('repeats', 'Repeats', value: 2, min: 1, max: 8),
+      const EffectParam.toggle('flash', 'Flip and colour each hit', value: true),
     ],
     video: (g, input, p, env) => _sequence(g, input, p, env, audio: false),
     audio: (g, input, p, env) => _sequence(g, input, p, env, audio: true),
-    outputSeconds: (p, s) {
-      final plan = _SequencePlan.from(p, s);
-      return plan.notes.length * plan.length;
-    },
+    outputSeconds: (p, s) => _SequencePlan.from(p, s).totalSeconds,
   ),
   Effect(
     id: 'beat_chop',
@@ -355,42 +362,131 @@ String _stutter(FilterGraph g, String input, ParamReader p, FxEnv env, {required
   return g.join([...chunks, s[1]], 'concat=n=${reps + 1}:v=${audio ? 0 : 1}:a=${audio ? 1 : 0}');
 }
 
+/// The Sequencer's pattern choices: the chorus pitch, every classic, every
+/// other wiki pitch pattern, then your own.
+final Map<String, Pattern?> _sequencerPatterns = () {
+  final lib = PatternLibrary.instance;
+  final out = <String, Pattern?>{};
+  final chorus = lib.classic(PatternKind.pitch, 'chorus');
+  if (chorus != null) out['Chorus pitch (0 0 +1 +1 -2 -2 +1 +1)'] = chorus;
+  String name(Pattern p) {
+    final section = SectionKind.byWiki(p.section)?.label ?? '${p.section[0].toUpperCase()}${p.section.substring(1)}';
+    var n = '$section › ${p.title}${p.classic ? ' (classic)' : ''}';
+    for (var i = 2; out.containsKey(n); i++) {
+      n = '$section › ${p.title} ($i)';
+    }
+    return n;
+  }
+
+  final all = lib.of(PatternKind.pitch).where((p) => p != chorus && p.section != 'chords').toList();
+  for (final p in all.where((p) => p.classic)) {
+    out[name(p)] = p;
+  }
+  for (final p in all.where((p) => !p.classic)) {
+    out[name(p)] = p;
+  }
+  out[_customPattern] = null;
+  return out;
+}();
+
+const _customPattern = 'Custom (type it below)';
+
+/// Names of the Sequencer's pattern choices, in menu order.
+final List<String> sequencerPatternNames = _sequencerPatterns.keys.toList();
+
 class _SequencePlan {
-  _SequencePlan(this.start, this.length, this.notes);
+  _SequencePlan(this.start, this.sampleLength, this.stepSeconds, this.totalSteps, this.hits);
 
   factory _SequencePlan.from(ParamReader p, double duration) {
-    final length = math.min(p.decimal('note'), math.max(duration, 0.04));
-    final start = math.max(0.0, math.min(p.decimal('start'), duration - length));
-    var pitches = parsePitchList(p.text('pitches'), maxItems: 32);
-    if (pitches.isEmpty) pitches = [0];
-    final notes = <double>[for (var r = 0; r < p.integer('repeats'); r++) ...pitches].take(96).toList();
-    return _SequencePlan(start, length, notes);
+    final choice = p.choice('pattern');
+    Pattern? pattern = _sequencerPatterns[choice];
+    if (choice == _customPattern) {
+      try {
+        pattern = PatternLibrary.custom(PatternKind.pitch, p.text('custom').replaceAll('+', ''));
+      } on PatternFormatException {
+        pattern = null;
+      }
+    }
+    pattern ??= _sequencerPatterns.values.first ?? PatternLibrary.custom(PatternKind.pitch, '0 0 1 1 -2 -2 1 1');
+    final stepSeconds = 15 / p.decimal('bpm');
+    final sampleLength = math.min(p.decimal('sample'), math.max(duration, 0.04));
+    final start = math.max(0.0, math.min(p.decimal('start'), duration - sampleLength));
+    var totalSteps = pattern.bars * 16.0 * p.integer('repeats');
+    var hits = pattern.looped(totalSteps);
+    // Keep the graph a sensible size.
+    if (hits.length > 128) {
+      final cut = hits[128].step;
+      hits = hits.take(128).toList();
+      totalSteps = (cut / 16).ceil() * 16.0;
+    }
+    return _SequencePlan(start, sampleLength, stepSeconds, totalSteps, hits);
   }
 
   final double start;
-  final double length;
-  final List<double> notes;
+  final double sampleLength;
+  final double stepSeconds;
+  final double totalSteps;
+  final List<PatternHit> hits;
+
+  double get totalSeconds => totalSteps * stepSeconds;
 }
 
 String _sequence(FilterGraph g, String input, ParamReader p, FxEnv env, {required bool audio}) {
   final plan = _SequencePlan.from(p, env.duration);
-  final n = plan.notes.length;
-  final sample = audio
-      ? g.a(input, 'atrim=start=${fmt(plan.start)}:duration=${fmt(plan.length)},asetpts=PTS-STARTPTS')
-      : g.v(input, 'trim=start=${fmt(plan.start)}:duration=${fmt(plan.length)},setpts=PTS-STARTPTS');
-  final copies = g.split(sample, n, audio: audio);
-  final parts = <String>[];
-  for (var i = 0; i < n; i++) {
-    final st = plan.notes[i];
-    if (audio) {
-      parts.add(g.a(copies[i], pitch(st, sampleRate: env.sampleRate)));
-    } else {
-      final look = p.toggle('flash') && st != 0
-          ? '${hue((st * 30) % 360, saturation: 1.3)}${i.isOdd ? ',hflip' : ''}'
-          : (i.isOdd ? 'hflip' : 'null');
-      parts.add(g.v(copies[i], look));
-    }
+  final hits = plan.hits;
+  // Slots: an optional leading rest, then each hit until the next one.
+  final slots = <(PatternHit?, double)>[];
+  if (hits.isEmpty || hits.first.step > 0) {
+    slots.add((null, (hits.isEmpty ? plan.totalSteps : hits.first.step) * plan.stepSeconds));
   }
+  for (var i = 0; i < hits.length; i++) {
+    final end = i + 1 < hits.length ? hits[i + 1].step : plan.totalSteps;
+    slots.add((hits[i], (end - hits[i].step) * plan.stepSeconds));
+  }
+  final copies = g.split(input, slots.length, audio: audio);
+  final parts = <String>[];
+  var hitIndex = 0;
+  for (var i = 0; i < slots.length; i++) {
+    final (hit, slot) = slots[i];
+    final d = fmt(slot);
+    if (hit == null) {
+      parts.add(
+        audio
+            ? g.a(copies[i], 'atrim=duration=0.02,volume=0,apad=whole_dur=$d,atrim=duration=$d,asetpts=PTS-STARTPTS')
+            : g.v(
+                copies[i],
+                'trim=end_frame=1,setpts=PTS-STARTPTS,drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill,'
+                'tpad=stop_mode=clone:stop_duration=$d,trim=duration=$d,setpts=PTS-STARTPTS',
+              ),
+      );
+      continue;
+    }
+    // The sample sounds for the note's length (cut by the next hit).
+    final sounds = math.min(plan.sampleLength, math.min(hit.length * plan.stepSeconds, slot));
+    final cut = 'start=${fmt(plan.start)}:duration=${fmt(math.max(0.02, sounds))}';
+    if (audio) {
+      parts.add(
+        g.a(
+          copies[i],
+          'atrim=$cut,asetpts=PTS-STARTPTS,${pitch(hit.semitone, sampleRate: env.sampleRate)},'
+          'afade=t=out:st=${fmt(math.max(0, sounds - 0.008))}:d=0.008,apad=whole_dur=$d,atrim=duration=$d,'
+          'asetpts=PTS-STARTPTS',
+        ),
+      );
+    } else {
+      final flip = p.toggle('flash') && hitIndex.isOdd ? ',hflip' : '';
+      final tint = p.toggle('flash') && hit.semitone != 0 ? ',${hue((hit.semitone * 30) % 360, saturation: 1.3)}' : '';
+      parts.add(
+        g.v(
+          copies[i],
+          'trim=$cut,setpts=PTS-STARTPTS$flip$tint,tpad=stop_mode=clone:stop_duration=$d,trim=duration=$d,'
+          'setpts=PTS-STARTPTS',
+        ),
+      );
+    }
+    hitIndex++;
+  }
+  final n = parts.length;
   return g.join(parts, 'concat=n=$n:v=${audio ? 0 : 1}:a=${audio ? 1 : 0}');
 }
 

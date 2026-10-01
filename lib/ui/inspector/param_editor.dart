@@ -185,14 +185,122 @@ class _ChoiceEditor extends StatelessWidget {
         ),
       );
     }
+    if (options.length > 30) return _SearchableChoice(param: param, value: value, onChanged: onChanged);
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
       dropdownColor: AppColors.surface,
       borderRadius: BorderRadius.circular(10),
       style: const TextStyle(fontSize: 13, color: AppColors.text, fontFamily: 'Inter'),
-      items: [for (final o in options) DropdownMenuItem(value: o, child: Text(o))],
+      items: [
+        for (final o in options)
+          DropdownMenuItem(
+            value: o,
+            child: Text(o, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+      ],
       onChanged: (v) => v == null ? null : onChanged(v),
+    );
+  }
+}
+
+/// A long list of choices (the Sparta Sequencer's patterns): the current one
+/// as a button that opens a searchable list.
+class _SearchableChoice extends StatelessWidget {
+  const _SearchableChoice({required this.param, required this.value, required this.onChanged});
+  final EffectParam param;
+  final String value;
+  final ValueChanged<Object?> onChanged;
+
+  Future<void> _pick(BuildContext context) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (_) => _ChoiceSearchDialog(title: param.label, options: param.options!, value: value),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _pick(context),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+            ),
+            const Icon(Icons.search, size: 16, color: AppColors.muted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChoiceSearchDialog extends StatefulWidget {
+  const _ChoiceSearchDialog({required this.title, required this.options, required this.value});
+  final String title;
+  final List<String> options;
+  final String value;
+
+  @override
+  State<_ChoiceSearchDialog> createState() => _ChoiceSearchDialogState();
+}
+
+class _ChoiceSearchDialogState extends State<_ChoiceSearchDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final words = _query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final list = [
+      for (final o in widget.options)
+        if (words.every((w) => o.toLowerCase().contains(w))) o,
+    ];
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 520,
+        height: 480,
+        child: Column(
+          children: [
+            TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                isDense: true,
+                prefixIcon: Icon(Icons.search, size: 18),
+                hintText: 'Search',
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: ListView.builder(
+                itemCount: list.length,
+                itemBuilder: (context, i) => ListTile(
+                  dense: true,
+                  selected: list[i] == widget.value,
+                  leading: Icon(
+                    list[i] == widget.value ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    size: 18,
+                  ),
+                  title: Text(list[i]),
+                  onTap: () => Navigator.pop(context, list[i]),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel'))],
     );
   }
 }

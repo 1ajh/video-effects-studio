@@ -3,9 +3,11 @@
 library;
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_effects_studio/core/audio/dsp.dart';
+import 'package:video_effects_studio/core/audio/psola.dart';
 import 'package:video_effects_studio/core/audio/audio_buffer.dart';
 import 'package:path/path.dart' as p;
 import 'package:video_effects_studio/core/effects/custom_effect.dart';
@@ -178,6 +180,48 @@ void main() {
       expect(result.failures.map((f) => f.effectName), ['Broken']);
       expectDuration(await engine.probe(out), withAudio.duration);
     });
+  });
+
+  test('the Sparta Sequencer plays the chorus pitch in time', () async {
+    if (kit == null) return markTestSkipped('ffmpeg not found');
+    final effect = EffectRegistry.builtIn.firstWhere((e) => e.id == 'sparta_sequencer');
+    final out = p.join(tmp.path, 'sequencer.wav');
+    final params = {...effect.defaults(), 'sample': 0.3, 'repeats': 1};
+    await engine.render(
+      RenderRequest(
+        media: withAudio,
+        effect: effect,
+        params: params,
+        outputPath: out,
+        output: const OutputSettings(format: OutputFormat.wav),
+      ),
+    );
+    final a = AudioBuffer.fromWav(File(out).readAsBytesSync()).mono();
+    // Two bars of quarter notes at 140 BPM.
+    expect(a.duration, closeTo(8 * 60 / 140, 0.05));
+    final semis = <int>[];
+    for (var i = 0; i < 8; i++) {
+      final at = ((i * 60 / 140 + 0.08) * a.sampleRate).round();
+      final track = trackPitch(a.data.sublist(at, at + (0.15 * a.sampleRate).round()), a.sampleRate)!;
+      semis.add((12 * math.log(track.medianHz / 220) / math.ln2).round());
+    }
+    expect(semis, [0, 0, 1, 1, -2, -2, 1, 1]);
+
+    // A typed pattern with a rest.
+    final custom = p.join(tmp.path, 'sequencer_custom.wav');
+    await engine.render(
+      RenderRequest(
+        media: withAudio,
+        effect: effect,
+        params: {...params, 'pattern': 'Custom (type it below)', 'custom': '0*** 7*** ______ 12*'},
+        outputPath: custom,
+        output: const OutputSettings(format: OutputFormat.wav, loudness: LoudnessTarget.off),
+      ),
+    );
+    final c = AudioBuffer.fromWav(File(custom).readAsBytesSync()).mono();
+    expect(c.duration, closeTo(16 * 15 / 140, 0.05), reason: 'one bar');
+    final restAt = ((10 * 15 / 140) * c.sampleRate).round();
+    expect(c.slice(restAt / c.sampleRate, (restAt / c.sampleRate) + 0.2).rms(), lessThan(0.001));
   });
 
   test('level matching makes quiet effects loud and leaves loud ones alone', () async {
