@@ -1,50 +1,67 @@
 name: video_effects_studio
-description: A cross-platform video effects processor with multiple modes like Purple Vocoder, Cursed Christmas, and more.
+description: >-
+  SRLE Studio (Sparta Remix & Logo Editing): Sparta remixes from your own
+  videos over real bases, plus logo-editing effects — G-Majors, vocoders,
+  glitches, pitch chords — with previews and effect compilations.
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0-dev.4+6
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.9.0 <4.0.0'
+  flutter: '>=3.35.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  
-  # File picking and management
-  file_picker: ^6.1.1
-  path_provider: ^2.1.1
-  path: ^1.8.3
-  desktop_drop: ^0.4.4
-  
-  # State management
-  provider: ^6.1.1
-  
-  # UI components
-  cupertino_icons: ^1.0.6
-  flutter_spinkit: ^5.2.0
-  percent_indicator: ^4.2.3
-  
-  # Auto-update functionality
-  http: ^1.1.0
-  package_info_plus: ^5.0.1
-  url_launcher: ^6.2.1
-  
-  # Storage
-  shared_preferences: ^2.2.2
-  
-  # Notifications
-  flutter_local_notifications: ^16.2.0
+
+  # State
+  provider: ^6.1.5
+
+  # Files
+  path: ^1.9.0
+  path_provider: ^2.1.6
+  file_picker: ^13.1.0
+  desktop_drop: ^0.8.4
+
+  # Persistence
+  shared_preferences: ^2.5.5
+
+  # Playback (before/after preview)
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
+
+  # Updates / links
+  http: ^1.5.0
+  package_info_plus: ^10.2.1
+  url_launcher: ^6.3.2
+  crypto: ^3.0.7
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  integration_test:
-    sdk: flutter
-  flutter_lints: ^3.0.1
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
-  
+
   assets:
-    - assets/icons/
-    - assets/modes/
+    - assets/fonts/Inter-ExtraBold.ttf
+    - assets/fonts/Inter-LICENSE.txt
+    - bases/catalog.json
+    - bases/transcriptions/
+    - assets/branding/logo_256.png
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800

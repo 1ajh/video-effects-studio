@@ -1,0 +1,54 @@
+name: Base transcription
+description: Send in a fixed transcription of a Sparta base (sections, hits, drums) so everyone gets it.
+title: "Transcription: "
+labels: ["transcription"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for fixing a base! The app saved your transcription as a `.sparta.json` file
+        (Sparta mode → review → **Submit transcription**). **Drag that file into the box below.**
+        Once it's checked it's added to the base catalog with your credit, and everyone using
+        the app gets it automatically.
+  - type: input
+    id: base
+    attributes:
+      label: Base
+      description: The base's name.
+    validations:
+      required: true
+  - type: input
+    id: maker
+    attributes:
+      label: Base maker
+      description: Who made the base (if known).
+  - type: input
+    id: catalog
+    attributes:
+      label: Catalog id
+      description: Filled in by the app for bases from the library. Leave as is.
+  - type: input
+    id: sha1
+    attributes:
+      label: Audio SHA-1
+      description: Filled in by the app; identifies the exact audio file the transcription fits.
+  - type: input
+    id: credit
+    attributes:
+      label: Credit
+      description: The name to credit you with in the catalog.
+    validations:
+      required: true
+  - type: textarea
+    id: transcription
+    attributes:
+      label: Transcription file
+      description: Drag the saved `.sparta.json` file here.
+      placeholder: Drop the .sparta.json file here
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: What you fixed, anything unsure.

@@ -2,56 +2,74 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.5'
 
 jobs:
-  analyze:
+  analyze-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Auto-format code
-        run: dart format .
-      
-      - name: Analyze project source
-        run: flutter analyze --no-fatal-infos lib/
-      
-      - name: Run tests
-        run: flutter test 2>/dev/null || true
 
-  build-test:
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install FFmpeg (integration tests)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed --line-length 120 lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Unit & widget tests
+        run: flutter test --exclude-tags ffmpeg
+
+      - name: Render every effect with FFmpeg
+        run: flutter test --tags ffmpeg
+
+  store:
     runs-on: ubuntu-latest
-    needs: analyze
+    defaults:
+      run:
+        working-directory: store
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-node@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Recreate Android platform
+          node-version: '22'
+      - name: Store tests (orders, keys, activation)
+        run: npm test
+
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
         run: |
-          rm -rf android
-          flutter create --platforms=android --org com.ajh --project-name video_effects_studio .
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build linux --release

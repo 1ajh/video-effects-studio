@@ -1,0 +1,16 @@
+{
+  "name": "srle-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "srle.ajh.wtf: order codes, license keys and key activation for SRLE Studio.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "keygen": "node tools/keygen.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

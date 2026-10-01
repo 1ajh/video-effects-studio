@@ -1,381 +1,167 @@
-# Video Effects Studio
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/wordmark_dark.png">
+  <img alt="SRLE Studio — Sparta Remix & Logo Editing" src="assets/branding/wordmark_light.png" width="520">
+</picture>
 
-A cross-platform video effects processor featuring modes like Purple Vocoder, Cursed Christmas, Sparta Pitch, and more. Originally based on NotSoBot tag commands, now available as a native application for all devices.
+# SRLE Studio (Sparta Remix & Logo Editing)
 
-![Video Effects Studio](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS%20%7C%20Web-blue)
-![Flutter](https://img.shields.io/badge/Flutter-3.19+-02569B?logo=flutter)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Build Status](https://github.com/1ajh/srle-studio/actions/workflows/ci.yml/badge.svg)
+A desktop studio for **Sparta remixes** and **logo-editing style video effects**. The **Sparta Remix Generator** turns any video of someone talking into a full Sparta remix over a real base, followed exactly: pitch, bass and pads on the base's notes, the chorus words in the wiki's patterns, percussion on the base's drums, mixed, mastered and with the classic box video. The effects side has G-Majors, vocoders, CoNfUsIoN, Low Voice, Luig Group, voice changers, glitches, and 260+ more: preview any effect on your clip instantly, then render it, or build a **compilation** that plays your clip through effect after effect, like the classic "X in 40 effects" videos.
 
-## ✨ Features
+![Platforms](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-7C5CFF)
+![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
+![License](https://img.shields.io/badge/License-proprietary-FF5A36)
+[![CI](https://github.com/1ajh/video-effects-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/1ajh/video-effects-studio/actions/workflows/ci.yml)
 
-- 🎬 **40+ Video Effects** - Vocoders, G Majors, Color Grading, Glitch, Audio Effects, YTPMV tools
-- 📁 **Batch Processing** - Process multiple videos at once
-- 🖱️ **Drag & Drop** - Simply drag videos into the app
-- 📱 **Cross-Platform** - Works on Windows, macOS, Linux, Android, iOS, and Web
-- 🔄 **Auto Updates** - Automatically checks for new versions from GitHub
-- ⚙️ **Customizable Parameters** - Adjust effect settings to your liking
-- 🎨 **Modern UI** - Beautiful dark theme with intuitive controls
-- 📊 **Processing History** - Track all your processed videos
-- ⭐ **Favorites** - Save your most-used effects
-- 📱 **Responsive Design** - Optimized layouts for mobile, tablet, and desktop
-- ⚡ **Real-time Preview** - See effect parameters before processing
+## What's inside
 
-## 🎭 Available Effects
+- **265 effects in 10 categories**, every one rendered through real FFmpeg in CI, and level-matched so each comes out loud and even:
+  - **Logo Editing**: recipes checked against their [Logo Editing Wiki](https://logo-editing.fandom.com) pages (Low Voice, Luig Group, Mari Group, CoNfUsIoN, Devil's Blast, Chorded, Crying, Angry, Happy, Sad, Shock, Asleep, Awake, Embarrassed, Blind X, Deaf X, Weird Code, Hitting, Sponge 2.0, Pitch Black, Crazy Diamond, V-Major, You Wiggled X, Sick, I KILLED X, the Color Outs, the Milks, Ear Bleed, Heat Overload, Wind Blower, Inverted Hue Puzzle, Hatsune Miku, Square Head, Morning & Night, Scary Effect, Mystery Effect, M/U/W/I-Major, Meta Major, Broken Major and many more of the wiki's popular effects), with their gradient maps, mirrors, hue settings and pitches as written (AVS pitch rates converted to semitones)
+  - **G-Majors & Chords**: G-Major 1, 2, 3, 4, 5, 7, 10, 12, 13, 14, 15, 16, 17, 19 and 100, Deaf Major, AMTVE Major, Archie The Dog Major, the NotSoBot G-Majors, a **Chord Builder** where you type the pitch of every duplicated track, plus a harmonizer, doubler, barbershop quartet, sus4, major seventh, augmented and whole-tone chords
+  - **Vocoders & Robots**: real robotized voices (FFT phase vocoding), stacked into chords with the matching looks, and the **IL Vocodex presets** the community builds effects from (Robot, Helium, Elderly, More Testosterone, Group, Power, Old School, Clearer, Backing Voices, Droplets, Autovocoding, Reverb, For Drums) with their wiki gradient maps
+  - **Voice Changer**: giant, baby, monster, demon, old man, radio, walkie-talkie, cave, stadium announcer, drunk, dark lord, helium balloon, cartoon, slow-mo, space radio, in a can
+  - **Color, Distortion, Glitch, Audio, Time & Speed**: mirrors, swirl, pinch, bulge, kaleidoscope, CRT, VHS, RGB split, datamosh melt, 8-bit, deep fried, vaporwave, bass boost, earrape, 8D audio, reverse, boomerang, stutter, nightcore…
+  - **YTPMV tools**: a real **Sparta Sequencer** (plays one sample as the chorus pitch 0 0 +1 +1 −2 −2 +1 +1, any of the Sparta Remix Wiki's pitch patterns, or your own, in time), **Beat Chop** ("1 1 2 1 3 3 4 4") and **Pitch Ladder**
+- **Before / after preview**: every effect is rendered as a short preview automatically. Watch it on its own or side by side with the original.
+- **Effect thumbnails**: the effect list shows each effect applied to *your* clip.
+- **Compilations**: effects play one after another in order. Add effects one by one, a whole category, **every effect**, or **N random** ones; shuffle and drag to reorder. Optionally play the original first, and label each segment with a **name overlay** or a **title card**. Each item keeps its own settings.
+- **Sparta Remix Generator** (see below)
+- **Trim** any range before rendering, with I/O shortcuts at the playhead.
+- **Export** MP4 (H.264/AAC, plays in Discord etc.), WebM, GIF, MP3 or WAV, at High / Balanced / Small quality with an optional resolution cap.
+- **Batch**: render one effect over every loaded clip.
+- **Presets, favorites and recents**.
+- **Custom effects**: write your own FFmpeg filter chains, test them in place, and use them anywhere (compilations included).
+- **Render queue** with progress, ETA, cancel, "show in folder", and a persistent history.
 
-### Vocoder Effects (12 effects)
-- Purple Vocoder - Classic vocoder with purple tint
-- Techno - Electronic dance music vocoder
-- Gansta - Hip-hop style vocoder
-- Xtal Vocoder - Crystal-clear vocoder effect
-- Daft Vocoder - Inspired by Daft Punk's sound
-- Electric - High voltage electronic voice
-- CapCut Robot Effect - TikTok-style robot voice
-- White Robotic Dimension - Ethereal robot vocals
-- Discord Electronic Sounds - Discord call glitch effect
-- Yellow Vocoder - Warm vocoder tones
-- Chromatic Vocoder - Multi-colored vocoder
-- Glitch Vocoder - Corrupted vocoder sound
+## Sparta Remix Generator
 
-### Color Grading (6 effects)
-- Loud Rainbow - Vibrant color cycling
-- Fast Color - Rapid hue rotation
-- Blue Distorted Pitches - Blue-tinted distortion
-- Grayscale - Black and white conversion
-- Sepia - Vintage brown tones
-- Posterize - Reduce color levels
+The third mode (`Ctrl+3`) makes a Sparta remix the way the community does: a real base, followed exactly, with samples cut from your video. It goes in four steps: **Base → Source → Line → Generate**.
 
-### Glitch & Distortion (14 effects)
-- G Major - Classic G Major effect
-- G Major Kyoobur9000 - Kyoobur style
-- G Major Adrian Sparino V2 - Adrian Sparino variant
-- G Major 2 LTV MCA - LTV MCA series
-- G Major 3 LTV MCA - LTV MCA series
-- G Major Alapat1 - Alapat1's version
-- Congabusher - Rhythm distortion
-- Cursed Christmas V2 - Holiday horror
-- JCTOTBOI G Major - JCTOTBOI style
-- VHS Effect - Retro VHS tape look
-- Camera Shake - Earthquake effect
-- Edge Detection - Outline extraction
-- Night Vision - Green military look
-- Thermal Camera - Heat map view
+- **Base**
+  - **Library**: 560 real bases you can search and download, each credited to its maker and linked to where it was published: Keaton's official Sparta Extended instrumental, the HADES BLACK, Francex and *Some Sparta Bases Archive* collections, single uploads, and 12 bases from the Sparta Archive FLP Remixes that come with their FL Studio project and a render checked against it (marked **Exact**).
+  - **Your audio**: any base as MP3/WAV. Tempo, bar 1, where the music ends, the kicks, snares and hats, the chords, the hit notes (matched against every pitch pattern on the Sparta Remix Wiki, in every key) and the sections (the chorus is the loud part the base keeps coming back to; the parts between follow the Sparta order) are worked out by listening. If the file is a library base, its checked transcription is used instead.
+  - **Your project**: FL Studio `.flp`, FL Studio Mobile `.flm` or MIDI, with the base's audio (lined up automatically) or re-synthesized. The base's notes are read exactly (hits, bass line and chords); pick the hit/lead track if the automatic choice is wrong.
+- **What the remix plays** (all from the base, nothing made up), and nothing after the base ends:
+  - the **pitch sample** plays the base's own hit notes, hard-tuned to the base's root (or *Natural*, keeping the voice's wobble). Where a section has no hits of its own, the wiki's pattern for it plays, fitted to the base's chords;
+  - the **bass** (a voiced syllable tuned down to D2, or your base's root) plays the base's bass line, and the **pads** (a vowel stretched into a pad) play its chords; both can be switched off globally or per section;
+  - the **chorus words** play the wiki's word patterns: the standard chorus, DunDunDenDen's 1-2-3A-3B, the epicness and madness patterns, only in the sections that have them; a long intro plays the chorus after the quote. The chorus is words only by default;
+  - the **percussion** lands on the base's own kicks, snares and hats;
+  - the **quote** (your whole line) opens the intro.
+- **Pitched notes**: *Stretch* (default) re-pitches every note with its length kept, like FL Studio's stretch mode, so voices don't turn into chipmunks; *Resample + crossfades* plays them like a sampler (pitch and speed together) with automatic crossfades between notes.
+- **Keaton's Sparta Extended base** ships with a checked transcription: its 13 sections, the D–D#–C–D# progression, its bass line, chords and drums, and the wiki's original patterns in their places (Awesomeness 1 before the madness, Awesomeness 2 opening the final chorus).
+- **Source and line**: everything is cut from your sources. The app finds the spoken lines; you pick one and its words become the chorus samples, numbered in order (syllables of a word are 3A, 3B…). Play each word, drag the cuts between words, split, join or trim them. Nothing is layered from anywhere else unless you switch on the synth drum body (off by default: that would be a fake sample). Chorus Crisp is on by default.
+- **Fix the base**: transcriptions from audio are drafts, so everything is editable: relabel, rename, split, merge or drag sections (the classics plus pre- and post-epicness), change the root, move or replace a section's hits with a wiki pattern, fix its kick/snare/hat, nudge beat 1. Fixes are kept per base. **Send your fixes** saves the transcription and opens a filled-in GitHub issue; approved ones are added to the catalog with your credit, for everyone.
+- **Per section**: choose any of the wiki's word and pitch patterns (classics, freestyles, KingSpartaX37's madness and the rest), or type your own in wiki notation.
+- **Random mode** (off by default) can use chorus freestyles, other pitch patterns, other samples per section and a different section layout. *Another take* re-rolls it.
+- **Video**: the classic box grid by default: one box per sample (pitch, bass, pads, each word, and the kick, snare and hat along the bottom row), sized automatically (2×2, 3×3 or 4×4), flipping horizontally on every hit, black between hits, and the quote full screen. Every one of those is an option (grid size; which boxes flip and how; black, dimmed or held last frame; quote full screen, in its own box or as a title card), plus Modern, Chaos/YTPMV and Minimal styles.
+- **Mix and export**: stretched or resampled notes, choke per lane, a bus per lane, the base ducked under the quote, then a **Clean** (≈ −10 LUFS, −1 dB peak) or **Hot** master. Export the video (or MP3/WAV), plus optional **stems** (base, pitch, bass, pads, words, drums, quote) and **MIDI** (the sample chart and the base's notes).
 
-### Audio Effects (8 effects)
-- Pitch Shift (-12 to +12 semitones)
-- Pitch Maker (with WAV export option)
-- Bass Boost - Enhanced low frequencies
-- Earrape - Extreme distortion (⚠️ loud!)
-- Echo - Delay/echo effect
-- Reverb - Room ambience
-- Chipmunk - High-pitched voice
-- Deep Voice - Low-pitched voice
+> **Volume**: by default every render is level-matched to about −9 LUFS with a −1 dB peak (*Loud & consistent*). The effect's audio is measured first, then turned up or down, soft-clipped and limited, so quiet effects like vocoders come out as loud as the rest. Effects that are loud on purpose (🔊 badge) are never turned down. Choose *Standard* (−14 LUFS) or *As the effect makes it* under Output → Volume.
 
-### YTPMV Tools (4 effects)
-- Sparta Pitch - Customizable pitch sequences
-- YTPMV Base - Basic YTPMV template
-- Stutter Effect - Rapid repeat/stutter
-- Reverse - Play video backwards
+## Download
 
-### Speed & Transform (4 effects)
-- Speed Up (2x) - Double speed
-- Slow Down (0.5x) - Half speed
-- Mirror Horizontal - Left-right flip
-- Mirror Vertical - Top-bottom flip
+SRLE Studio costs $50, once, from **[srle.ajh.wtf](https://srle.ajh.wtf)**: you get a license key that unlocks it on up to 3 computers. The builds are on the public repository's [Releases](https://github.com/1ajh/srle-studio/releases) (the app checks there for updates). FFmpeg is bundled, so there's nothing else to install.
 
-### Other (3 effects)
-- Diamond Video - 4-way rotation overlay
-- Negative - Inverted colors
-- Pixelate - Retro pixel effect
+| Platform | File | Notes |
+|---|---|---|
+| Windows 10/11 | `SRLEStudio-windows.zip` | Unzip and run `srle_studio.exe` |
+| macOS 12+ | `SRLEStudio-macos.dmg` | Unsigned: right-click → Open the first time |
+| Linux (x64) | `SRLEStudio-linux.tar.gz` | Needs GTK 3 and **libmpv** for in-app playback (`sudo apt install libmpv2`) |
 
-## 📥 Installation
+Rendering runs FFmpeg locally, so phones and browsers can't do it. The web/mobile builds just show a link to the store.
 
-### Pre-built Releases
+## Using it
 
-Download the latest release for your platform from the [Releases](https://github.com/1ajh/srle-studio/releases) page.
+1. **Add a clip**: drag it anywhere onto the window, or press `Ctrl+O`.
+2. **Pick an effect** on the left. A preview renders on its own (`Ctrl+P` to force it).
+3. Tweak **parameters** in the inspector on the right, and set the **output** format and folder below them.
+4. **Render** (`Ctrl+Enter`). Jobs appear in the queue (`Ctrl+Q`).
 
-| Platform | Download | Requirements | Status |
-|----------|----------|--------------|--------|
-| Windows | `VideoEffectsStudio-windows.zip` | Windows 10/11 | ✅ Available |
-| Linux | `VideoEffectsStudio-linux.tar.gz` | GTK 3.0+ | ✅ Available |
-| Web | [web.app](https://1ajh.github.io/srle-studio) | Modern browser | ✅ Available |
-| macOS | `VideoEffectsStudio-macos.dmg` | macOS 10.14+ | ⚠️ Build from source |
-| Android | `app-release.apk` | Android 6.0+ | ⚠️ Build from source |
-| iOS | `VideoEffectsStudio-ios.ipa` | iOS 12.0+ | ⚠️ Build from source |
+**Sparta Remix mode** (`Ctrl+3`): pick a base, add your sources, confirm the line, press **Generate remix**, review, then **Render remix**.
 
-> **Note**: Android, iOS, and macOS builds are temporarily unavailable due to upstream FFmpeg library issues. You can build these platforms from source.
+**Compilation mode** (`Ctrl+2`): add effects with the ➕ button, double-click, or `Ctrl+D`, or use *All effects / Add category / Random* in the dock at the bottom. Click a card to edit that item, drag to reorder, and choose *Original first* and a label style. Then render.
 
-> **FFmpeg is bundled with the application** - no separate installation required! Just download and run.
+### Shortcuts
 
-### Build from Source
+| Keys | Action |
+|---|---|
+| `Ctrl+O` | Add clips |
+| `Ctrl+Enter` | Render |
+| `Ctrl+P` | Preview now |
+| `Space` / `Home` | Play-pause / back to start |
+| `I` / `O` | Set trim in / out |
+| `Ctrl+F`, `↑` `↓` | Search / step through effects |
+| `Ctrl+D` | Add effect to the compilation |
+| `Ctrl+1` / `2` / `3` | Single effect / Compilation / Sparta Remix mode |
+| `1` `2` `3` | Original / Effect / Split view |
+| `Ctrl+H`, `Ctrl+,`, `F1` | History, Settings, Help |
 
-#### Prerequisites
+## Building from source
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install) (3.24 or higher)
-2. Install platform-specific dependencies:
-
-**Windows:**
-```bash
-# Visual Studio with C++ Desktop development workload
-```
-
-**macOS:**
-```bash
-xcode-select --install
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-```
-
-**Linux:**
-```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
-```
-
-#### Building
+Requirements: Flutter 3.47+ and FFmpeg on your `PATH` (or pick it in Settings → FFmpeg).
 
 ```bash
-# Clone the repository
-git clone https://github.com/1ajh/srle-studio.git
-cd srle-studio
-
-# Install dependencies
 flutter pub get
-
-# Run in development mode
-flutter run
-
-# Build for specific platforms
-flutter build windows --release
-flutter build macos --release
-flutter build linux --release
-flutter build apk --release
-flutter build ios --release --no-codesign
-flutter build web --release
+flutter run -d windows   # or macos / linux
 ```
 
-## 🚀 Usage
+Linux build dependencies:
 
-1. **Select Files**: Drag and drop video files into the left panel, or click to browse
-2. **Choose Effect**: Browse or search effects in the middle panel, click to select
-3. **Adjust Parameters**: If the effect has customizable parameters, adjust them in the right panel
-4. **Process**: Click "Process Video" (or "Process X Files" for batch)
-5. **View Results**: When complete, open the output folder to find your processed videos
+```bash
+sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev ffmpeg
+```
 
-### Keyboard Shortcuts (Desktop)
+Debug builds run without a key. Release builds need the store's public key (`--dart-define=SRLE_LICENSE_PUBLIC_KEY=…`, see [Licensing](#licensing-and-the-store)).
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl/Cmd + O` | Open file |
-| `Ctrl/Cmd + Enter` | Process video |
-| `Ctrl/Cmd + ,` | Open settings |
-| `Ctrl/Cmd + H` | View history |
-| `Escape` | Cancel/Close dialog |
+### Tests
 
-## 🧩 Adding New Effects
+```bash
+flutter test --exclude-tags ffmpeg   # unit + widget tests (~990)
+(cd store && npm test)               # the store
+flutter test --tags ffmpeg           # renders every effect and full Sparta remixes with real FFmpeg
+VFX_FFMPEG=/path/to/ffmpeg flutter test --tags ffmpeg   # against a specific build
+```
 
-Effects are defined in `lib/models/effects_registry.dart`. To add a new effect:
+The FFmpeg suite renders every effect on a clip with audio and on an odd-sized clip without audio, and runs the whole Sparta pipeline (sources → line, words and samples → project, audio-only and library bases → mix → video in every visual style). It also covers every output format, all compilation label modes, skipped-segment handling, previews and thumbnails. CI runs it against Ubuntu's FFmpeg 6.1, and it also passes on current FFmpeg master.
+
+## How effects work
+
+Effects are declared in `lib/core/effects/library/`. Each effect gets a label for the incoming stream and returns the label of its output, building a `-filter_complex` graph with shared blocks (`lib/core/ffmpeg/blocks.dart`): pitch shifting without rubberband, pitch chords, mirrors, waves, swirl, radial pinch/bulge, TV simulator, light rays, gradient maps and more.
 
 ```dart
-EffectMode(
-  id: 'my_new_effect',
-  name: 'My New Effect',
-  description: 'Description of what it does',
-  category: 'Glitch', // Vocoder, Color Grading, Glitch, Audio, YTPMV, Other
-  ffmpegFilter: '-vf "your_filter=param1:param2" -af "audio_filter"',
-  parameters: [
-    EffectParameter(
-      id: 'intensity',
-      name: 'Intensity',
-      description: 'How strong the effect is',
-      type: ParameterType.slider,
-      defaultValue: 1.0,
-      minValue: 0.0,
-      maxValue: 2.0,
-    ),
-  ],
+Effect(
+  id: 'luig_group',
+  name: 'Luig Group',
+  description: 'HSL Adjust "Invert Color" hue flip with the pitch set to −1.',
+  category: EffectCategory.logoEditing,
+  video: vf(hslInvert),
+  audio: af(pitch(-1)),
 ),
 ```
 
-### Parameter Types
-
-- `ParameterType.slider` - Numeric slider with min/max values
-- `ParameterType.dropdown` - Selection from predefined options
-- `ParameterType.toggle` - Boolean on/off switch
-- `ParameterType.text` - Free text input
-- `ParameterType.color` - Color picker
-
-## Remote Effects Updates
-
-The app can fetch new effects from a remote JSON file without requiring an app update. Create an `effects_registry.json` file in your GitHub repo:
-
-```json
-{
-  "version": "1.1.0",
-  "effects": [
-    {
-      "id": "new_remote_effect",
-      "name": "New Remote Effect",
-      "description": "Added via remote update",
-      "category": "other",
-      "command_template": "ffmpeg -i \"$INPUT\" -vf \"negate\" \"$OUTPUT\""
-    }
-  ]
-}
-```
-
-## 📁 Project Structure
+The command builder takes care of the boring parts: argument lists (no shell quoting), trimming, even frame sizes, `yuv420p`, 48 kHz stereo, clips without audio, exact segment lengths for compilations, and output encoders.
 
 ```
-srle-studio/
-├── lib/
-│   ├── main.dart                  # App entry point & responsive router
-│   ├── models/
-│   │   ├── effect_mode.dart       # Effect & Parameter data models
-│   │   ├── effects_registry.dart  # All 40+ effects definitions
-│   │   └── models.dart            # Barrel exports
-│   ├── screens/
-│   │   ├── home_screen.dart       # Desktop layout (>900px)
-│   │   ├── tablet_home_screen.dart # Tablet layout (600-900px)
-│   │   ├── mobile_home_screen.dart # Mobile layout (<600px)
-│   │   ├── settings_screen.dart   # User preferences
-│   │   ├── history_screen.dart    # Processing history
-│   │   ├── about_screen.dart      # App information
-│   │   └── help_screen.dart       # Help & FAQ
-│   ├── services/
-│   │   ├── app_state.dart         # Provider state management
-│   │   ├── ffmpeg_service.dart    # FFmpeg video processing
-│   │   ├── preferences_service.dart # Persistent settings
-│   │   └── update_service.dart    # Auto-update from GitHub
-│   └── widgets/
-│       ├── effect_card.dart       # Effect selection card
-│       ├── file_drop_zone.dart    # Drag & drop zone
-│       ├── parameter_editor.dart  # Effect parameter controls
-│       ├── processing_dialog.dart # Progress indicator
-│       └── update_banner.dart     # Update notification
-├── assets/
-│   ├── icons/                     # App icons
-│   └── modes/                     # Effect previews
-├── test/                          # Unit & widget tests
-├── android/                       # Android platform config
-├── ios/                           # iOS platform config
-├── macos/                         # macOS platform config
-├── windows/                       # Windows platform config
-├── linux/                         # Linux platform config
-├── web/                           # Web platform config
-└── pubspec.yaml                   # Dependencies
+lib/
+  core/        effects, FFmpeg command building, rendering (pure Dart, fully tested)
+    audio/     DSP: FFT, YIN, onsets, TD-PSOLA, filters, dynamics, synthesis
+    sparta/    base catalog, wiki pattern library, FLP/FLM/MIDI readers, project and audio
+               transcription, line & sample finder, enhancer, charter, mixer, visual renderer
+  state/       controllers (project, editor, compilation, preview, queue, library, settings, sparta)
+  ui/          the editor: browser, preview, inspector, compilation dock, Sparta workspace, queue, pages
 ```
 
-## ⚠️ Technical Notes
+## Licensing and the store
 
-### Platform-Specific Features
+- **The store** ([`store/`](store)) is the site at srle.ajh.wtf: orders paid by Cash App or Apple Pay, an admin page that marks them paid and makes each a license key, and the activation API. It's plain Node with no dependencies; [store/README.md](store/README.md) covers running it on the VPS.
+- **Keys**: the app asks for the key once, sends it with a fingerprint of the computer to `/api/activate`, and keeps the Ed25519-signed answer. After that it checks the signature offline against the public key built into the release (`lib/core/licensing/`). The admin page can revoke a key or reset its computers.
+- **The public repository** [1ajh/srle-studio](https://github.com/1ajh/srle-studio) holds the releases, the base catalog and transcriptions (the app reads them from there), and issues. Its README, licenses, issue templates and the transcription workflow live in [`public-repo/`](public-repo); `tool/publish_public_repo.sh <checkout>` copies them, the logo and `bases/` into a checkout of it.
+- **Releases**: *Build and Release* builds with the newest `bases/` from the public repository and publishes there. It needs the `SRLE_LICENSE_PUBLIC_KEY` Actions variable (the store's public key) and a `PUBLIC_REPO_TOKEN` secret (a fine-grained token with *Contents: read and write* on 1ajh/srle-studio).
 
-| Feature | Desktop | Mobile | Web |
-|---------|---------|--------|-----|
-| Drag & Drop | ✅ | ❌ | ✅ |
-| Batch Processing | ✅ | ✅ | ⚠️ Limited |
-| File System Access | ✅ Full | ✅ Scoped | ⚠️ Download only |
-| FFmpeg Processing | ✅ Full | ✅ Full | ⚠️ WASM (limited) |
-| Background Processing | ✅ | ⚠️ Limited | ❌ |
-| Notifications | ✅ | ✅ | ⚠️ Browser dependent |
+## Credits
 
-### Desktop-Only Effects
+- Sparta patterns and section names come from the [Sparta Remix Wiki](https://spartaremix.fandom.com/wiki/Category:Sparta_Remix_Components) (CC BY-SA); bases are credited to their makers in the app
+- Sparta techniques draw on the community's tools: PSOLA pitch correction as in Pet297's *PitchCorrector297*, Chorus Crisp and SlamShaper-style shaping from composition-cassidy's tools, and grid visuals like *Sparta Remix Visual Editor*
+- Effect recipes are inspired by the [Logo Editing Wiki](https://logo-editing.fandom.com/wiki/Category:Effects) community and the original NotSoBot tags by **AJH**
+- [FFmpeg](https://ffmpeg.org), [Flutter](https://flutter.dev), [media_kit](https://github.com/media-kit/media-kit), [Inter](https://rsms.me/inter/) (SIL OFL)
 
-Some effects (marked with 🖥️) require desktop platforms because they use:
-- Wine (for autotune.exe vocoder effects)
-- System-level audio processing
-- Large memory allocations
-
-On mobile/web, these effects may show a limited version or be disabled.
-
-### FFmpeg Commands
-
-All effects are powered by FFmpeg through the `ffmpeg_kit_flutter` package. The original NotSoBot shell commands have been converted to pure FFmpeg filter chains for cross-platform compatibility.
-
-### Video Output Encoding
-
-Output videos are optimized for sharing:
-- **Video**: H.264 (libx264) with preset `medium`
-- **Audio**: AAC at 192kbps
-- **Container**: MP4 with `-movflags +faststart` for web streaming
-- **Resolution**: Maintains original (or custom via settings)
-
-This ensures videos will embed properly in Discord, Twitter, and other platforms.
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-flutter test
-
-# Run with coverage
-flutter test --coverage
-
-# Run specific test file
-flutter test test/models/effects_test.dart
-```
-
-## 🔄 CI/CD
-
-This project uses GitHub Actions for continuous integration:
-
-- **CI Workflow**: Runs on every push/PR to `main` and `develop`
-  - Code formatting check
-  - Static analysis
-  - Unit tests
-  - Debug build verification
-
-- **Build Workflow**: Runs on version tags (`v*`)
-  - Builds for all 6 platforms
-  - Creates GitHub Release with all artifacts
-  - Auto-generates release notes
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/new-effect`
-3. Make your changes and add tests
-4. Run tests: `flutter test`
-5. Format code: `dart format .`
-6. Commit your changes: `git commit -am 'Add new effect'`
-7. Push to the branch: `git push origin feature/new-effect`
-8. Submit a Pull Request
-
-### Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/srle-studio.git
-cd srle-studio
-
-# Add upstream remote
-git remote add upstream https://github.com/1ajh/srle-studio.git
-
-# Install dependencies
-flutter pub get
-
-# Run the app
-flutter run -d chrome  # or windows, macos, linux
-```
-
-## 📜 Credits
-
-- **AJH** - Original NotSoBot tags and app development
-- **GanerCodes** - AutotuneBot/autotune.exe
-- **FFmpeg** - Video processing engine
-- **Flutter** - Cross-platform framework
-- **flutter_ffmpeg** - FFmpeg bindings for Flutter
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  Made with ❤️ by AJH
-  <br>
-  <a href="https://github.com/1ajh/srle-studio/issues">Report Bug</a>
-  ·
-  <a href="https://github.com/1ajh/srle-studio/issues">Request Feature</a>
-  ·
-  <a href="https://github.com/1ajh/srle-studio/discussions">Discussions</a>
-</p>
+© AJH, all rights reserved, see [LICENSE](LICENSE). Third-party licenses (FFmpeg, Inter, the wikis) are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which every download includes.

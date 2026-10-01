@@ -1,12 +1,12 @@
 {
-    "name": "Video Effects Studio",
-    "short_name": "VFX Studio",
-    "description": "Process videos with 20+ effects including Vocoders, G Majors, and more",
+    "name": "SRLE Studio (Sparta Remix & Logo Editing)",
+    "short_name": "SRLE Studio",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#121212",
-    "theme_color": "#6B4EFF",
-    "orientation": "portrait-primary",
+    "background_color": "#0E0E12",
+    "theme_color": "#7C5CFF",
+    "description": "Sparta remixes and logo-editing effects (desktop app).",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
@@ -31,8 +31,5 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ],
-    "categories": ["multimedia", "video", "entertainment"],
-    "screenshots": [],
-    "related_applications": []
+    ]
 }

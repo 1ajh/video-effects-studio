@@ -1,0 +1,42 @@
+name: Add approved transcription
+
+# A maintainer adds the "transcription-approved" label to a base
+# transcription issue; this checks the attached file and opens a pull
+# request adding it to the base catalog with the sender's credit.
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  add:
+    if: github.event.label.name == 'transcription-approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and check the transcription
+        id: add
+        env:
+          BODY: ${{ github.event.issue.body }}
+          NUMBER: ${{ github.event.issue.number }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: python3 tool/add_transcription.py
+
+      - name: Open the pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: transcription/issue-${{ github.event.issue.number }}
+          title: "Add transcription: ${{ steps.add.outputs.name }}"
+          commit-message: "Add transcription of ${{ steps.add.outputs.name }} (#${{ github.event.issue.number }})"
+          body: |
+            Adds the transcription sent in with #${{ github.event.issue.number }}, credited to **${{ steps.add.outputs.credit }}**.
+
+            Closes #${{ github.event.issue.number }}
+          add-paths: |
+            bases/transcriptions/*.json
+            bases/catalog.json
