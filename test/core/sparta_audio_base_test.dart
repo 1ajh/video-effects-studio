@@ -92,6 +92,30 @@ void main() {
     expect(off, closeTo(lead, 0.012));
   });
 
+  test('reads the chord progression from a held bass, down to D2', () {
+    // D, D#, C, D# for half a bar each from D2 (73 Hz), under orchestra hits
+    // and kicks whose 50 Hz body rings louder than the bass.
+    const progression = [0, 1, -2, 1];
+    final events = <ScoreEvent>[];
+    for (var h = 0; h < 48; h++) {
+      final beat = h * 2.0, semi = progression[h % 4];
+      events.add(ScoreEvent(Instrument.bass, beat, 1.95, midi: [38.0 + semi]));
+      for (var k = 0; k < 2; k++) {
+        events.add(ScoreEvent(Instrument.kick, beat + k, 0.25));
+        events.add(ScoreEvent(Instrument.stab, beat + k, 0.45, midi: [74.0 + semi, 86.0 + semi]));
+        if ((h * 2 + k).isOdd) events.add(ScoreEvent(Instrument.snare, beat + k, 0.25, velocity: 0.7));
+      }
+    }
+    final audio = BaseRenderer().render(Score(events, bpm: 140, lengthBeats: 100));
+    final t = AudioTranscriber().transcribe(AudioBaseAnalyzer().analyze(withLeadIn(audio, 0.6)), name: 'synth');
+    var right = 0, total = 0;
+    for (var h = 2; h < t.lengthBeats / 2 - 2; h++) {
+      total++;
+      if (t.chordRootAt(h * 2 + 0.1) == progression[h % 4]) right++;
+    }
+    expect(right / total, greaterThan(0.85), reason: '$right of $total half bars');
+  });
+
   test('transcribes the drums and the chorus pitch pattern from audio', () {
     const lead = 0.8;
     final a = AudioBaseAnalyzer().analyze(withLeadIn(rendered, lead));

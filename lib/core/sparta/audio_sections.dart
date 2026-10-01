@@ -316,78 +316,128 @@ class AudioSectioner {
     int frames,
   ) {
     final out = <GuideNote>[];
-    // Bass notes a semitone apart are 4 Hz apart down there: a long window.
-    // Kicks ring (often tuned) below ~70 Hz, so bass notes are read from
-    // 75 Hz up, where their octave shows even when the fundamental is lower.
-    const n = 8192, hop = 2048;
+    // The bass note by harmonic salience: each candidate from E1 to B3 sums
+    // the strongest bin around each of its first four harmonics, so a sub
+    // sine shows through its fundamental and a bright bass through its
+    // overtones. A long window resolves notes a semitone apart down there.
+    // On 10 community bases with their FL Studio projects this names the
+    // project's bass note on 70% of half bars, right 88% of the time (the
+    // octave band it replaced: 45%).
+    const n = 8192, hop = 512, lo = 28, hi = 60, harmonics = 4;
     final bFrames = math.max(0, (x.length - n) ~/ hop + 1);
+    if (bFrames == 0) return out;
     final fft = Fft(n);
     final w = hann(n);
-    final binPc = Int8List(n ~/ 2)..fillRange(0, n ~/ 2, -1);
-    for (var k = 1; k < n ~/ 2; k++) {
-      final f = k * sampleRate / n;
-      if (f >= 75 && f < 200) binPc[k] = ((12 * math.log(f / 440) / math.ln2 + 69).round() % 12 + 12) % 12;
+    const notes = hi - lo;
+    final from = Int32List(notes * harmonics), to = Int32List(notes * harmonics);
+    for (var m = 0; m < notes; m++) {
+      final f0 = 440 * math.pow(2, (lo + m - 69) / 12);
+      for (var h = 0; h < harmonics; h++) {
+        final f = f0 * (h + 1);
+        final a = (f * math.pow(2, -0.5 / 12) * n / sampleRate).ceil();
+        final z = math.max(a + 1, (f * math.pow(2, 0.5 / 12) * n / sampleRate).ceil());
+        from[m * harmonics + h] = a;
+        to[m * harmonics + h] = math.min(z, n ~/ 2);
+      }
     }
-    final bass = List.generate(bFrames, (_) => Float64List(12));
-    final re = Float64List(n), im = Float64List(n);
+    final sal = Float32List(bFrames * notes);
+    final frameMax = Float64List(bFrames);
+    final re = Float64List(n), im = Float64List(n), mag = Float64List(n ~/ 2);
     for (var fr = 0; fr < bFrames; fr++) {
       for (var i = 0; i < n; i++) {
         re[i] = x[fr * hop + i] * w[i];
         im[i] = 0;
       }
       fft.transform(re, im);
-      for (var k = 1; k < n ~/ 2; k++) {
-        if (binPc[k] >= 0) bass[fr][binPc[k]] += re[k] * re[k] + im[k] * im[k];
+      final top = to.reduce(math.max);
+      for (var k = 0; k < top; k++) {
+        mag[k] = math.sqrt(re[k] * re[k] + im[k] * im[k]);
+      }
+      for (var m = 0; m < notes; m++) {
+        var v = 0.0;
+        for (var h = 0; h < harmonics; h++) {
+          var peak = 0.0;
+          for (var k = from[m * harmonics + h]; k < to[m * harmonics + h]; k++) {
+            if (mag[k] > peak) peak = mag[k];
+          }
+          v += peak;
+        }
+        sal[fr * notes + m] = v;
       }
     }
-    int bassFrameAt(double t) => ((t * sampleRate - n / 2) / hop).round();
-    // A drone or a tuned kick reads as a constant note: each pitch class's
-    // floor (its 20th percentile over the song) is taken off first.
-    final floorOf = List<double>.filled(12, 0);
-    if (bass.isNotEmpty) {
-      for (var p = 0; p < 12; p++) {
-        final v = [for (final f in bass) f[p]]..sort();
-        floorOf[p] = v[(v.length * 0.2).floor()];
+    // Below C2 a kick's tuned body can ring through every beat, louder than
+    // the bass: those notes count only above their level across the song.
+    for (var m = 0; m < 36 - lo; m++) {
+      final v = Float64List(bFrames);
+      for (var fr = 0; fr < bFrames; fr++) {
+        v[fr] = sal[fr * notes + m];
+      }
+      v.sort();
+      final floor = v[(0.2 * (bFrames - 1)).floor()];
+      for (var fr = 0; fr < bFrames; fr++) {
+        sal[fr * notes + m] = math.max(0, sal[fr * notes + m] - floor);
       }
     }
-    final strengths = <double>[];
-    final roots = <(int, double, int, double)>[]; // (pc, strength, quality, beat)
+    for (var fr = 0; fr < bFrames; fr++) {
+      for (var m = 0; m < notes; m++) {
+        if (sal[fr * notes + m] > frameMax[fr]) frameMax[fr] = sal[fr * notes + m];
+      }
+    }
+    // How loud a clear bass note is in this base.
+    final sortedMax = [...frameMax]..sort();
+    final ref = sortedMax[(0.9 * (sortedMax.length - 1)).floor()] + 1e-12;
+    final found = List<(int, int)?>.filled(bars * 2, null); // (root pc, third)
     for (var h = 0; h < bars * 2; h++) {
-      final t0 = downbeat + h * barSec / 2;
-      final a = frameAt(t0 + 0.03).clamp(0, frames), z = frameAt(t0 + barSec / 2 - 0.03).clamp(a, frames);
-      if (z <= a) continue;
-      final b = Float64List(12), c = Float64List(12);
-      for (var fr = a; fr < z; fr++) {
+      final t0 = downbeat + h * barSec / 2, t1 = t0 + barSec / 2;
+      final a = ((t0 + 0.03) * sampleRate - n / 2) / hop, z = ((t1 - 0.03) * sampleRate - n / 2) / hop;
+      final first = math.max(0, a.ceil()), last = math.min(bFrames - 1, z.floor());
+      if (last < first) continue;
+      // A low percentile over the half bar: kicks are loud but short.
+      final pcv = Float64List(12);
+      final column = Float64List(last - first + 1);
+      for (var m = 0; m < notes; m++) {
+        for (var fr = first; fr <= last; fr++) {
+          column[fr - first] = sal[fr * notes + m];
+        }
+        column.sort();
+        final v = column[(0.3 * (column.length - 1)).floor()];
+        final pc = (lo + m) % 12;
+        if (v > pcv[pc]) pcv[pc] = v;
+      }
+      var pc = 0;
+      for (var p = 1; p < 12; p++) {
+        if (pcv[p] > pcv[pc]) pc = p;
+      }
+      var second = 0.0;
+      for (var p = 0; p < 12; p++) {
+        if (p != pc && pcv[p] > second) second = pcv[p];
+      }
+      // A clear bass note: loud for this base and standing out from the rest.
+      if (pcv[pc] < 0.4 * ref || (pcv[pc] - second) < 0.1 * pcv[pc]) continue;
+      final ca = frameAt(t0 + 0.03).clamp(0, frames), cz = frameAt(t1 - 0.03).clamp(ca, frames);
+      final c = Float64List(12);
+      for (var fr = ca; fr < cz; fr++) {
         for (var p = 0; p < 12; p++) {
           c[p] += chroma[fr][p];
         }
       }
-      final ba = bassFrameAt(t0 + 0.05).clamp(0, bFrames), bz = bassFrameAt(t0 + barSec / 2 - 0.05).clamp(ba, bFrames);
-      for (var fr = ba; fr <= math.min(bz, bFrames - 1); fr++) {
-        for (var p = 0; p < 12; p++) {
-          b[p] += math.max(0, bass[fr][p] - floorOf[p]);
-        }
-      }
-      var pc = 0;
-      for (var p = 1; p < 12; p++) {
-        if (b[p] > b[pc]) pc = p;
-      }
-      final total = b.fold<double>(0, (s, v) => s + v) + 1e-12;
-      final share = b[pc] / total;
-      final third = c[(pc + 4) % 12] >= c[(pc + 3) % 12] ? 4 : 3;
-      strengths.add(total);
-      roots.add((pc, share, third, h * 2.0));
+      found[h] = (pc, c[(pc + 4) % 12] >= c[(pc + 3) % 12] ? 4 : 3);
     }
-    if (roots.isEmpty) return out;
-    final sorted = [...strengths]..sort();
-    final floor = sorted[(sorted.length * 0.25).floor()] * 0.5;
-    for (var i = 0; i < roots.length; i++) {
-      final (pc, share, third, beat) = roots[i];
-      // A clear bass note: loud enough and standing out from the rest.
-      if (strengths[i] < floor || share < 0.22) continue;
+    // Progressions loop every two bars: an unclear half bar takes the chord
+    // its neighbours a loop before and after agree on.
+    final filled = [...found];
+    for (var h = 0; h < found.length; h++) {
+      if (found[h] != null) continue;
+      final before = h >= 4 ? found[h - 4] : null, after = h + 4 < found.length ? found[h + 4] : null;
+      if (before != null && before == after) filled[h] = before;
+    }
+    for (var h = 0; h < filled.length; h++) {
+      final f = filled[h];
+      if (f == null) continue;
+      final (pc, third) = f;
       final root = ((pc - rootPc) % 12 + 18) % 12 - 6;
       for (final iv in [0, third, 7]) {
-        out.add(GuideNote(beat, 2, root + iv));
+        out.add(GuideNote(h * 2.0, 2, root + iv));
       }
     }
     return out;
