@@ -115,6 +115,25 @@ void main() {
     expect(spread(natural.audio), greaterThanOrEqualTo(spread(hard.audio) - 1));
   });
 
+  test('drums start on their hit, so they land on the beat', () {
+    // 30 ms of room tone, then a decaying 60 Hz thump with a click.
+    final rng = math.Random(3);
+    final x = Float32List.fromList([
+      for (var i = 0; i < 24000; i++)
+        i < 1440
+            ? (rng.nextDouble() * 2 - 1) * 0.002
+            : math.exp(-(i - 1440) / 4800) * (math.sin(2 * math.pi * 60 * (i - 1440) / 48000) + (i < 1500 ? 0.8 : 0)),
+    ]);
+    for (final role in [SampleRole.kick, SampleRole.snare, SampleRole.hat]) {
+      final c = SampleCandidate(role: role, sourceIndex: 0, start: 0, end: 0.5, score: 0.5);
+      final p = SampleEnhancer().process(c, AudioBuffer(x, sampleRate: 48000), 'thump');
+      final peak = p.audio.fold<double>(0, (m, v) => math.max(m, v.abs()));
+      final attack = p.audio.indexWhere((v) => v.abs() >= 0.1 * peak) / 48000;
+      expect(attack, lessThan(0.004), reason: '${role.name} attack at ${attack * 1000} ms');
+      expect(p.lead, closeTo(0.03, 0.004));
+    }
+  });
+
   test('a pitch candidate with no steady pitch is rejected, not used off-key', () {
     final rng = math.Random(1);
     final noise = AudioBuffer(

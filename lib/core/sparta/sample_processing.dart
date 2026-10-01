@@ -288,7 +288,15 @@ class SampleEnhancer {
     return cut <= 0 ? 0 : math.min(cut, x.length ~/ 3);
   }
 
-  ProcessedSample _kick(SampleCandidate c, Float32List x, String src) {
+  /// A drum starts on its hit: near-silence before it (a cut a little
+  /// early) would play every hit late.
+  static (Float32List, int) _onHit(Float32List x) {
+    final lead = _leadingSilence(x, -26, 1.5);
+    return (lead > 0 ? Float32List.fromList(x.sublist(lead)) : x, lead);
+  }
+
+  ProcessedSample _kick(SampleCandidate c, Float32List input, String src) {
+    final (x, lead) = _onHit(input);
     final hit = _cut(x, 0.35);
     Biquad.lowShelf(sr.toDouble(), 120, 6).process(hit);
     Biquad.highPass(sr.toDouble(), 30).process(hit);
@@ -301,10 +309,18 @@ class SampleEnhancer {
     saturate(out, drive: 1.6);
     fade(out, sr, inMs: 0.5, outMs: 30);
     _normalize(out, 0.95);
-    return ProcessedSample(role: c.role, audio: out, candidate: c, sourcePath: src, naturalSeconds: hit.length / sr);
+    return ProcessedSample(
+      role: c.role,
+      audio: out,
+      candidate: c,
+      sourcePath: src,
+      naturalSeconds: hit.length / sr,
+      lead: lead / sr,
+    );
   }
 
-  ProcessedSample _snare(SampleCandidate c, Float32List x, String src) {
+  ProcessedSample _snare(SampleCandidate c, Float32List input, String src) {
+    final (x, lead) = _onHit(input);
     final hit = _cut(x, 0.28);
     Biquad.highPass(sr.toDouble(), 140).process(hit);
     Biquad.peak(sr.toDouble(), 220, 4, q: 1.2).process(hit);
@@ -315,10 +331,18 @@ class SampleEnhancer {
     saturate(out, drive: 1.4);
     fade(out, sr, inMs: 0.5, outMs: 25);
     _normalize(out, 0.9);
-    return ProcessedSample(role: c.role, audio: out, candidate: c, sourcePath: src, naturalSeconds: hit.length / sr);
+    return ProcessedSample(
+      role: c.role,
+      audio: out,
+      candidate: c,
+      sourcePath: src,
+      naturalSeconds: hit.length / sr,
+      lead: lead / sr,
+    );
   }
 
-  ProcessedSample _hat(SampleCandidate c, Float32List x, String src) {
+  ProcessedSample _hat(SampleCandidate c, Float32List input, String src) {
+    final (x, lead) = _onHit(input);
     final hit = _cut(x, 0.12);
     Biquad.highPass(sr.toDouble(), 5000).process(hit);
     Biquad.highPass(sr.toDouble(), 5000).process(hit);
@@ -328,7 +352,14 @@ class SampleEnhancer {
     _decay(out, 0.07);
     fade(out, sr, inMs: 0.3, outMs: 10);
     _normalize(out, 0.7);
-    return ProcessedSample(role: c.role, audio: out, candidate: c, sourcePath: src, naturalSeconds: hit.length / sr);
+    return ProcessedSample(
+      role: c.role,
+      audio: out,
+      candidate: c,
+      sourcePath: src,
+      naturalSeconds: hit.length / sr,
+      lead: lead / sr,
+    );
   }
 
   ProcessedSample _quote(SampleCandidate c, Float32List x, String src) {
