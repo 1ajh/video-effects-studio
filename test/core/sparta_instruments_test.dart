@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_effects_studio/core/sparta/arranger.dart';
 import 'package:video_effects_studio/core/sparta/base_library.dart';
+import 'package:video_effects_studio/core/sparta/chart_import.dart';
 import 'package:video_effects_studio/core/sparta/charter.dart';
 import 'package:video_effects_studio/core/sparta/model.dart';
+import 'package:video_effects_studio/core/sparta/project_transcriber.dart';
 import 'package:video_effects_studio/core/sparta/transcription.dart';
 import 'package:video_effects_studio/core/sparta/visual_renderer.dart';
 
@@ -125,6 +127,71 @@ void main() {
       final chart = Charter().write(t);
       expect(chart.where((n) => n.role == SampleRole.word), isNotEmpty);
       expect(chart.where((n) => n.role == SampleRole.pitch), isNotEmpty);
+    });
+  });
+
+  group('from projects', () {
+    // 8 bars: hits on D, an unnamed low one-note line, a stab chord part and
+    // a sustained pad.
+    const prog = [0, 1, -2, 1];
+    ChartSource project() => ChartSource(
+      name: 'p',
+      path: 'p.mid',
+      bpm: 140,
+      tracks: [
+        ChartTrack(
+          id: 'lead',
+          name: 'Lead',
+          notes: [for (var b = 0.0; b < 32; b += 1) RawNote(b, 0.5, 74 + prog[(b ~/ 2) % 4])],
+        ),
+        ChartTrack(
+          id: 'low',
+          name: '3x Osc #2',
+          notes: [
+            for (var b = 0.0; b < 32; b += 0.5) RawNote(b, 0.4, 50 + prog[(b ~/ 2) % 4] + (b * 2 % 2 == 1 ? 12 : 0)),
+          ],
+        ),
+        ChartTrack(
+          id: 'stabs',
+          name: 'Stabs',
+          notes: [
+            for (var b = 0.5; b < 32; b += 1)
+              for (final i in const [0, 4, 7]) RawNote(b, 0.25, 62 + prog[(b ~/ 2) % 4] + i),
+          ],
+        ),
+        ChartTrack(
+          id: 'pad',
+          name: 'Nexus',
+          notes: [
+            for (var b = 0.0; b < 32; b += 2)
+              for (final i in const [0, 4, 7]) RawNote(b, 2, 62 + prog[(b ~/ 2) % 4] + i),
+          ],
+        ),
+      ],
+    );
+
+    test('an unnamed low one-note part is the bass line', () {
+      final t = ProjectTranscriber().transcribe(project());
+      expect(t.bass, isNotEmpty);
+      expect(t.bass.first.semitone, 50 - t.rootKey);
+      // The guide is the lead, not the bass.
+      expect(t.hits.every((h) => h.semitone + t.rootKey >= 70), isTrue);
+    });
+
+    test('the pads take the most sustained chord part and hold each chord', () {
+      final t = ProjectTranscriber().transcribe(project());
+      expect(t.chords.every((c) => c.length >= 2 - 1e-9), isTrue, reason: 'the sustained pad, not the stabs');
+      final s = Section(SectionKind.chorus, 0, 32);
+      final stabs = t.copyWith(
+        chords: [
+          for (var b = 0.5; b < 32; b += 1)
+            for (final i in const [0, 4, 7]) GuideNote(b, 0.25, prog[(b ~/ 2) % 4] + i),
+        ],
+      );
+      final held = Charter.padChords(stabs, s);
+      // One held chord per change, lasting until the next (D from 0.5 to 2.5).
+      expect(held.where((n) => n.semitone == 0).first.length, closeTo(2, 1e-9));
+      expect(held.map((n) => n.beat).toSet().length, lessThanOrEqualTo(17));
     });
   });
 

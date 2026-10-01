@@ -396,19 +396,41 @@ class Charter {
   }
 
   /// The chord voices the pads play in [s] (semitones from the key's root,
-  /// the chord's root kept within a fourth of it).
+  /// the chord's root kept within a fourth of it). A pad holds each chord
+  /// until the harmony changes, however the base plays it (stabs, arps).
   static List<GuideNote> padChords(BaseTranscription t, Section s) {
+    final spans = _chordSpans(t, s);
+    final voicings = [
+      for (final (start, _, root) in spans)
+        (
+          start,
+          {
+            for (final c in t.chords)
+              if ((c.beat - start).abs() < 1e-6) c.semitone + _wrap(root) - root,
+          },
+        ),
+    ];
     final out = <GuideNote>[];
-    for (final (start, end, root) in _chordSpans(t, s)) {
-      final shift = _wrap(root) - root;
-      for (final c in t.chords) {
-        if ((c.beat - start).abs() < 1e-6) {
-          out.add(GuideNote(start, math.min(c.length, end - start), c.semitone + shift));
-        }
+    var i = 0;
+    while (i < voicings.length) {
+      final (start, notes) = voicings[i];
+      var j = i + 1;
+      while (j < voicings.length && _sameSet(voicings[j].$2, notes)) {
+        j++;
       }
+      // Held to the next different chord (or the end of the section / the
+      // last stab plus a beat, whichever is first).
+      final lastEnd = spans[j - 1].$2;
+      final end = j < voicings.length ? voicings[j].$1 : math.min(s.endBeat, math.max(lastEnd, spans[j - 1].$1 + 1));
+      for (final n in notes) {
+        out.add(GuideNote(start, end - start, n));
+      }
+      i = j;
     }
     return out;
   }
+
+  static bool _sameSet(Set<int> a, Set<int> b) => a.length == b.length && a.containsAll(b);
 
   /// The chords starting in [s]: (start, end, root).
   static List<(double, double, int)> _chordSpans(BaseTranscription t, Section s) {

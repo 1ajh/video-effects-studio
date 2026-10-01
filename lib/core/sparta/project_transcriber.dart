@@ -53,7 +53,11 @@ class ProjectTranscriber {
     ];
     // Bass lines play the same progression (often the wiki's "0, 12"
     // octaves) but a pitch sample doubles the hits and leads above them.
-    final upper = candidates.where((t) => !_isBass(t)).toList();
+    final bassTracks = _bassTracks([
+      for (final t in candidates)
+        if (!t.isDrums && uses[t.id] != TrackUse.guide) t,
+    ]);
+    final upper = candidates.where((t) => !bassTracks.contains(t)).toList();
     final tonal = upper.isNotEmpty ? upper : candidates;
     final forced = [
       for (final t in candidates)
@@ -188,17 +192,13 @@ class ProjectTranscriber {
 
     // The bass line and the chords, from the base's bass and pad / chord
     // tracks (what the bass sample and the pads play).
-    final guides = {for (final t in choice) ?t?.id};
-    final bassTracks = [
-      for (final t in candidates)
-        if (_isBass(t) && !guides.contains(t.id)) t,
-    ];
     final bass = _lowestLine([for (final t in bassTracks) ...t.notes], root);
+    // The pad: the most sustained chord part (stabs play the same chords).
     final chordTracks = [
       for (final t in candidates)
-        if (!_isBass(t) && !guides.contains(t.id) && _isChords(t)) t,
-    ];
-    var chords = _voicings([for (final t in chordTracks) ...t.notes], root);
+        if (!t.isDrums && !bassTracks.contains(t) && _isChords(t)) t,
+    ]..sort((a, b) => b.meanLength.compareTo(a.meanLength));
+    var chords = _voicings(chordTracks.isEmpty ? const [] : chordTracks.first.notes, root);
     if (chords.isEmpty && bass.isNotEmpty) {
       // No chord part: power chords on the bass line's notes.
       chords = [
@@ -225,6 +225,40 @@ class ProjectTranscriber {
       patterns: patterns,
       baseName: src.name,
     );
+  }
+
+  /// The base's bass parts: named or pitched so, else the lowest
+  /// one-note-at-a-time part when it sits well under the rest.
+  static List<ChartTrack> _bassTracks(List<ChartTrack> tonal) {
+    final named = [
+      for (final t in tonal)
+        if (_isBass(t)) t,
+    ];
+    if (named.isNotEmpty) return named;
+    final mono = [
+      for (final t in tonal)
+        if (_polyphony(t) < 1.3 && t.notes.length >= 8) t,
+    ]..sort((a, b) => _median(a).compareTo(_median(b)));
+    if (mono.isEmpty) return const [];
+    final low = mono.first;
+    final rest = [
+      for (final t in tonal)
+        if (!identical(t, low)) _median(t),
+    ];
+    final gap = rest.isEmpty ? 12 : rest.reduce(math.min) - _median(low);
+    // Octave-jumping lines sit higher on average: their lower notes count.
+    final keys = low.notes.map((x) => x.key).toList()..sort();
+    return keys[keys.length ~/ 4] < 55 && gap >= 5 ? [low] : const [];
+  }
+
+  static double _polyphony(ChartTrack t) {
+    final onsets = t.notes.map((x) => (x.beat * 32).round()).toSet().length;
+    return onsets == 0 ? 0 : t.notes.length / onsets;
+  }
+
+  static int _median(ChartTrack t) {
+    final keys = t.notes.map((x) => x.key).toList()..sort();
+    return keys.isEmpty ? 127 : keys[keys.length ~/ 2];
   }
 
   /// A pad / chord part: named so, or mostly playing several notes at once.
