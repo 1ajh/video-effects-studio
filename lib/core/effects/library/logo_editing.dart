@@ -22,11 +22,11 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'luig_group',
     name: 'Luig Group',
-    description: 'HSL Adjust "Invert Color" hue flip with the pitch set to −1.',
+    description: 'HSL Adjust add-to-hue 0.85 (greens turn blue) with the pitch set to −1.',
     category: EffectCategory.logoEditing,
-    credit: 'Losky (2014) · Nikita Tokar variant · $_wiki',
-    video: vf(hslInvert),
-    audio: af(pitch(-1)),
+    credit: 'Losky (2014) · Vegas recipe · $_wiki',
+    video: vf(addToHue(0.85)),
+    audio: af(pitch(-1.00877)),
   ),
   Effect(
     id: 'luig_group_bgr',
@@ -40,76 +40,89 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'confusion',
     name: 'CoNfUsIoN',
-    description: 'Reflect Left mirror with inverted colors — the video plays forwards but the audio is reversed.',
+    description:
+        'Invert Color + 100% Invert (light and dark swap, colors stay) and Reflect Left; the video plays '
+        'forwards but the audio is reversed.',
     category: EffectCategory.logoEditing,
-    credit: 'Preview 2 Effects · $_wiki',
+    credit: 'ThroatHead! (2014) · Preview 2 Effects · $_wiki',
     heavy: true,
     keywords: const ['confusion', 'reverse'],
-    video: seq([mirrorFx(MirrorSide.left), vf('negate')]),
+    video: seq([vf(invertLuminosity), mirrorFx(MirrorSide.left)]),
     audio: reverseAudio,
   ),
   Effect(
     id: 'confusion_g_major_4',
     name: 'CoNfUsIoN G MaJoR 4',
-    description: 'CoNfUsIoN crossed with G-Major 4: mirrored, inverted, hue 144 and a reversed −4/0/+4 chord.',
+    description:
+        'CoNfUsIoN and G-Major 4 together: mirrored, luminosity inverted, solarized, with a reversed 0/+5 pair.',
     category: EffectCategory.logoEditing,
-    credit: 'Preview 2 Effects · $_wiki',
+    credit: 'G-Major 4 + CoNfUsIoN · $_wiki',
     heavy: true,
     loud: true,
-    video: seq([mirrorFx(MirrorSide.left), vf('negate,${hue(144, saturation: 2)}')]),
-    audio: chordFx(const [-4, 0, 4], pre: 'areverse'),
+    video: seq([vf(invertLuminosity), mirrorFx(MirrorSide.left), vf(gMajor4Look)]),
+    audio: chordFx(const [0, 5], pre: 'areverse'),
   ),
   Effect(
     id: 'devils_blast',
     name: "Devil's Blast",
-    description: 'Red filter with TV Simulator line-sync tearing; audio duplicated into −5 and −12 tracks.',
+    description: 'Channel Blend red only, moderate light rays and TV Simulator line sync 0.5; tracks at −12 and −5.',
     category: EffectCategory.logoEditing,
-    credit: "Devil's Blast · $_wiki",
+    credit: 'L15Edition (2012) · Preview 2 Effects · $_wiki',
     loud: true,
-    video: vf('${tint('ff1a00', amount: 0.75)},${tvSimulator(lineSync: 0.7)}'),
-    audio: chordFx(const [-5, -12]),
+    video: seq([vf(redOnly), raysFx(), vf(tvSimulator(lineSync: 0.5))]),
+    audio: chordFx(const [-12, -5]),
   ),
   Effect(
     id: 'angels_blast',
     name: "Angel's Blast",
-    description: "The heavenly mirror of Devil's Blast: blue-white glow, soft tearing and +5/+12 tracks.",
+    description: 'Hue +0.13, the picture tiled 4 × 4 and a swirl that unwinds; pitch −8.14 (AVS pitch 160).',
     category: EffectCategory.logoEditing,
-    credit: "Inspired by Angel's Blast (Krutik) · $_wiki",
-    loud: true,
-    video: seq([vf('${tint('9fd8ff', amount: 0.6)},${tvSimulator(lineSync: 0.25, noise: 8)}'), raysFx(intense: true)]),
-    audio: chordFx(const [5, 12], post: reverb(wet: 0.4)),
+    credit: "Angel's Blast · $_wiki",
+    video: (g, input, p, env) {
+      final tiled = g.v(input, addToHue(0.13));
+      final grid = tile4(g, g.v(tiled, 'scale=trunc(iw/4)*2:trunc(ih/4)*2'), flipped: false);
+      final big = tile4(g, grid, flipped: false);
+      return g.v(
+        big,
+        "scale=${env.width}:${env.height},geq='st(0,X-W/2);st(1,Y-H/2);st(2,hypot(ld(0),ld(1))/(0.5*hypot(W,H)));"
+        'st(3,max(0,1-T/${fmt(env.duration)})*3.1*max(0,1-ld(2)));'
+        "p(W/2+ld(0)*cos(ld(3))-ld(1)*sin(ld(3)),H/2+ld(0)*sin(ld(3))+ld(1)*cos(ld(3)))'",
+      );
+    },
+    audio: af(pitch(-8.13686)),
   ),
   Effect(
     id: 'chorded',
     name: 'Chorded',
     description:
-        'The IL Vocodex classic: the voice is robotized and stacked into a major chord over a gradient-mapped picture.',
+        'The IL Vocodex "Chord" classic: the voice is robotized and stacked into a major chord over the Chorded '
+        'gradient map (white, blue, cyan).',
     category: EffectCategory.logoEditing,
     credit: 'U-Man (2014) · $_wiki',
     loud: true,
     keywords: const ['vocodex', 'vocoder', 'chord'],
-    video: vf(gradientMap('2b0a5c', 'b8ff4a')),
+    video: vf(gradientMapEven(const ['ffffff', '0000ff', '00ffff'])),
     audio: chordFx(const [0, 4, 7, 12], pre: robot(winSize: 1024), post: softChorus),
   ),
   Effect(
     id: 'scariest_chorded',
     name: 'SCARIEST Chorded',
-    description: 'Dark, inverted gradient map with a robotized −4/−1 chord.',
+    description: 'Contrast halved and a cyan/blue gradient map; three Vocodex chord tracks at −4, −1 and +14.',
     category: EffectCategory.logoEditing,
     credit: 'SCARIEST Chorded · $_wiki',
     loud: true,
-    video: vf('${pseudocolor('magma')},negate'),
-    audio: chordFx(const [-4, -1], pre: robot(winSize: 2048)),
+    video: vf('eq=contrast=0.5,${gradientMapStops(const [(0.45, '00ffff'), (0.5, '08a3ff'), (0.8, '00ffff')])}'),
+    audio: chordFx(const [-4, -1, 14], pre: '${robot(winSize: 1024)},$softChorus'),
   ),
   Effect(
     id: 'crying',
     name: 'Crying',
-    description: 'Wave + hue 230 + invert; audio duplicated at 0.75× pitch and normal pitch.',
+    description: 'HSL add-to-hue 0.615, Invert and a horizontal-only wave; tracks at −5 and 0.',
     category: EffectCategory.logoEditing,
     credit: 'Jamie Shaffer (2014) · $_wiki',
     keywords: const ['crying x', 'expression'],
-    video: vf('${wave(horizontalAmp: 0.012, waves: 40, speed: 5)},${hue(230)},negate'),
-    audio: chordFx(const [-4.98, 0]),
+    video: vf('${addToHue(0.615)},negate,${wave(horizontalAmp: 0.012, waves: 5, speed: 0)}'),
+    audio: chordFx(const [-5, 0]),
   ),
   Effect(
     id: 'angry',
@@ -125,10 +138,10 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'weird_code',
     name: 'Weird Code',
-    description: 'Invert Color hue flip, Reflect Right, a swirl and ExpressFX "Wacky" chorus.',
+    description: 'Invert Color hue flip, Reflect Right and a 0.174 swirl; ExpressFX "Wacky 4" chorus.',
     category: EffectCategory.logoEditing,
     credit: 'LF5 (2015) · Klasky Csupo 2001 Effects · $_wiki',
-    video: seq([vf(hslInvert), mirrorFx(MirrorSide.right), vf(swirl(strength: 1.8))]),
+    video: seq([vf(hslInvert), mirrorFx(MirrorSide.right), vf(swirl(strength: 0.174 * 2 * 3.14159))]),
     audio: af(wackyChorus),
   ),
   Effect(
@@ -153,35 +166,40 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'sponge',
     name: 'Sponge',
-    description: 'Gradient Map "Sponge" with intense light rays; pitches +3 and +9.',
+    description: 'Four-point "Sponge" gradient map (orange, yellow, blue, cyan) with intense light rays; +3 and +9.',
     category: EffectCategory.logoEditing,
     credit: 'tnt2005 (2015) · Preview 2 Effects #17 · $_wiki',
     loud: true,
-    video: seq([vf(gradientMap('3a2600', 'fff04a')), raysFx(intense: true)]),
+    video: seq([
+      vf(gradientMapEven(const ['ffb000', 'ffff00', '00baff', '34ffff'])),
+      raysFx(intense: true),
+    ]),
     audio: chordFx(const [3, 9]),
   ),
   Effect(
     id: 'pitch_black',
     name: 'Pitch Black',
-    description: 'Crushed-to-black picture with the pitch dropped by up to three octaves.',
+    description: 'A black gradient map turns the picture pitch black; the pitch drops two octaves.',
     category: EffectCategory.logoEditing,
     credit: 'Preview 2 Effects · $_wiki',
     params: const [EffectParam.integer('semitones', 'Pitch', value: -24, min: -36, max: -12, unit: 'st')],
-    video: vf("eq=brightness=-0.25:contrast=1.6:saturation=0.6,curves=all='0/0 0.5/0.2 1/0.8'"),
+    video: vf('colorlevels=romax=0:gomax=0:bomax=0'),
     audio: (g, input, p, env) => g.a(input, pitch(p.integer('semitones'))),
   ),
   Effect(
     id: 'crazy_diamond',
     name: 'Crazy Diamond',
     description:
-        'TV Simulator, gradient map, intense light rays, increased contrast and 100% inversion — the Preview 2 finale.',
+        'TV Simulator (line sync 0.75), a blue-red-green-white gradient map, intense light rays and increased '
+        'contrast; a deep, wide chorus on the audio.',
     category: EffectCategory.logoEditing,
     credit: 'GTOTORPD (2012) · Preview 2 Effects · $_wiki',
     video: seq([
-      vf('${tvSimulator(lineSync: 0.4)},${pseudocolor('range2')}'),
+      vf('${tvSimulator(lineSync: 0.75)},${gradientMapEven(const ['0000ff', 'ff0000', '00ff00', 'ffffff'])}'),
       raysFx(intense: true),
-      vf("curves=all='0/0 0.25/0.12 0.75/0.9 1/1',negate"),
+      vf("curves=all='0/0 0.25/0.12 0.75/0.9 1/1'"),
     ]),
+    audio: af('chorus=1:1:34.2:0.9:1.342:4,lowpass=f=10000'),
   ),
   Effect(
     id: 'rgb_to_bgr',
@@ -204,11 +222,11 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'invert_color',
     name: 'Invert Color',
-    description: '100% inversion — the negative image.',
+    description: 'HSL Adjust\'s "Invert Color" preset: every hue turns to its opposite (brightness stays).',
     category: EffectCategory.logoEditing,
     credit: 'Preview 2 Effects #12 · $_wiki',
-    keywords: const ['negative', 'negate'],
-    video: vf('negate'),
+    keywords: const ['hue invert', 'hsl'],
+    video: vf(hslInvert),
   ),
   Effect(
     id: 'grey_invert_high_reversed',
@@ -241,23 +259,25 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'v_major',
     name: 'V-Major',
-    description: 'Hue 70, invert, flip and a doubled wave; audio duplicated into −5 and +7 tracks.',
+    description: '100% Invert, HSL Invert Color and Reflect Right; tracks at −10, −6, +3 and +9.',
     category: EffectCategory.logoEditing,
-    credit: 'After V-Major 20 (Jayden Slia) · $_wiki',
+    credit: 'V-Major · Vegas recipe · $_wiki',
     loud: true,
-    video: vf(
-      '${hue(70)},negate,vflip,${wave(horizontalAmp: 0.03, waves: 3)},${wave(horizontalAmp: 0.02, waves: 7, speed: 6)}',
-    ),
-    audio: chordFx(const [-5, 7]),
+    video: seq([vf('negate,$hslInvert'), mirrorFx(MirrorSide.right)]),
+    audio: chordFx(const [-10, -6, 3, 9]),
   ),
   Effect(
     id: 'you_wiggled',
     name: 'You Wiggled X',
-    description: 'Reflect Left plus a 10×10 wave in both directions; pitched up +14.',
+    description: 'HSL add-to-hue 0.192, Reflect Left and 10-wave wiggles both ways; pitched up +14.',
     category: EffectCategory.logoEditing,
     credit: 'You Wiggled X · $_wiki',
-    video: seq([mirrorFx(MirrorSide.left), vf(wave(horizontalAmp: 0.03, verticalAmp: 0.03, waves: 10, speed: 5))]),
-    audio: af(pitch(14)),
+    video: seq([
+      vf(addToHue(0.192)),
+      mirrorFx(MirrorSide.left),
+      vf(wave(horizontalAmp: 0.02, verticalAmp: 0.02, waves: 10, speed: 5)),
+    ]),
+    audio: af(pitch(13.82404)),
   ),
   Effect(
     id: 'dma_diamond_major',
@@ -294,58 +314,54 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'fat',
     name: 'Fat',
-    description: 'Stretched wide and pitched down — the "Fat X" look.',
+    description:
+        'The picture puffs out from the middle (Height Map / S_WarpPuff); pitch −4 through a low-pass radio filter.',
     category: EffectCategory.logoEditing,
-    credit: 'Fat X · Klasky Csupo Effects Wiki',
-    video: (g, input, p, env) => g.v(input, 'scale=trunc(iw*1.7/2)*2:ih,crop=${env.width}:${env.height}'),
-    audio: af(pitch(-4)),
+    credit: 'Fat X · $_wiki',
+    video: vf(radial(1.7)),
+    audio: af('${pitch(-4)},lowpass=f=1200:width_type=q:w=4,volume=4dB'),
   ),
   Effect(
     id: 'skinny',
     name: 'Skinny',
-    description: 'Squashed thin on a mirrored backdrop and pitched up — the "Skinny X" look.',
+    description: 'The picture pinches in toward the middle (inverted Height Map / S_WarpPuff −0.15); audio unchanged.',
     category: EffectCategory.logoEditing,
-    credit: 'Skinny X · Klasky Csupo Effects Wiki',
-    video: (g, input, p, env) {
-      final s = g.split(input, 2);
-      final bg = g.v(s[0], 'hflip,boxblur=16:2,eq=brightness=-0.2');
-      final fg = g.v(s[1], 'scale=trunc(iw*0.45/2)*2:ih');
-      return g.join([bg, fg], 'overlay=(W-w)/2:0');
-    },
-    audio: af(pitch(5)),
+    credit: 'Skinny X · $_wiki',
+    video: vf(radial(0.6)),
   ),
   Effect(
     id: 'sick',
     name: 'Sick',
-    description: 'Green gradient map, woozy wave + pinch, with chorus and distortion.',
+    description: 'Flipped horizontally, red only, TV Simulator line sync 0.75; pitched down two octaves and mangled.',
     category: EffectCategory.logoEditing,
     credit: 'Carlos Jethro Masa (2019) · Sick X · $_wiki',
-    video: vf(
-      '${gradientMap('0b2b00', 'b6ff5c')},${wave(horizontalAmp: 0.02, verticalAmp: 0.015, waves: 2, speed: 2)},${radial(0.8)}',
-    ),
-    audio: af('$softChorus,${mangle(driveDb: 8, bits: 10)}'),
+    video: vf('hflip,$redOnly,${tvSimulator(lineSync: 0.75)}'),
+    audio: af('${pitch(-12)},${pitch(-12)},${mangle(driveDb: 14)}'),
   ),
   Effect(
     id: 'i_killed',
     name: 'I KILLED X',
-    description: 'Blood-red sphere with jittering camera; slowed, crushed audio with echo.',
+    description: 'HSL add-to-hue 0.628 and an AVS-style sphere; pitch −8.14 (AVS pitch 160).',
     category: EffectCategory.logoEditing,
-    credit: 'Inspired by I KILLED X (Losky / Kyoobur9000) · $_wiki',
-    loud: true,
-    video: (g, input, p, env) => g.v(
-      input,
-      '${tint('b00000', amount: 0.7)},${radial(1.5)},${shake(width: env.width, height: env.height, amplitude: 8, speed: 2)}',
-    ),
-    audio: af('${pitch(-7)},${mangle(driveDb: 12, bits: 6)},aecho=0.8:0.7:180:0.4'),
+    credit: 'I KILLED X (Losky) · $_wiki',
+    video: vf('${addToHue(0.628)},${radial(1.6)}'),
+    audio: af(pitch(-8.13686)),
   ),
   Effect(
     id: 'congabusher',
     name: 'Congabusher',
-    description: 'Hue 232 with a mirror split and triple 3 kHz tremolo.',
+    description:
+        'Hue rotated 232.653° with Reflect Right; the audio bitcrushed to 1/21 of its sample rate (or a 3 kHz AM).',
     category: EffectCategory.logoEditing,
-    credit: 'NotSoBot tag',
+    credit: 'Conga Busher · $_wiki',
+    params: const [
+      EffectParam.choice('audio', 'Audio', value: 'Bitcrusher', options: ['Bitcrusher', '3 kHz AM']),
+    ],
     video: seq([vf(hue(232.653)), mirrorFx(MirrorSide.right)]),
-    audio: af('tremolo=f=3000:d=1,tremolo=f=3000:d=1,tremolo=f=3000:d=1'),
+    audio: (g, input, p, env) => g.a(
+      input,
+      p.choice('audio') == 'Bitcrusher' ? 'acrusher=bits=16:samples=21:mode=lin:aa=0:mix=1' : 'tremolo=f=3000:d=1',
+    ),
   ),
   Effect(
     id: 'cursed_christmas_v2',
@@ -360,36 +376,40 @@ final List<Effect> logoEditingEffects = [
   Effect(
     id: 'mirrored_and_slow',
     name: 'Mirrored and Slow',
-    description: 'Reflect Left at half speed with the pitch dropping an octave.',
+    description: 'Reflect Left at 0.3× speed; the voice slowed down with the pitch at AVS 125 (−3.9).',
     category: EffectCategory.logoEditing,
-    credit: 'Klasky Csupo Effects Wiki',
-    video: seq([vf(setpts(0.5)), mirrorFx(MirrorSide.left)]),
-    audio: af(tapeSpeed(0.5)),
-    outputSeconds: (p, s) => s / 0.5,
+    credit: _wiki,
+    video: seq([vf(setpts(0.3)), mirrorFx(MirrorSide.left)]),
+    audio: af('${atempo(0.3)},${pitch(-3.86)}'),
+    outputSeconds: (p, s) => s / 0.3,
   ),
   Effect(
     id: 'low_g_major_voice',
     name: 'Low G-Major Voice',
-    description: 'Low Voice slowdown and mirror, then a −4/0/+4 G-Major chord.',
+    description:
+        'Playback rate 0.25, 100% Invert, Reflect Right and a vertical wiggle; the slowed voice (−24) stacked '
+        'into +12, +7, +4, 0, −5 and −12.',
     category: EffectCategory.logoEditing,
     credit: 'Low G-Major Voice · $_wiki',
     loud: true,
-    video: seq([vf('${setpts(0.75)},$hslInvert,${hue(144, saturation: 2)}'), mirrorFx(MirrorSide.left)]),
-    audio: chordFx(const [-4, 0, 4], pre: tapeSpeed(0.75)),
-    outputSeconds: (p, s) => s / 0.75,
+    video: seq([
+      vf('${setpts(0.25)},negate'),
+      mirrorFx(MirrorSide.right),
+      vf(wave(horizontalAmp: 0, verticalAmp: 0.02, waves: 3, speed: 22)),
+    ]),
+    audio: chordFx(const [12, 7, 4, 0, -5, -12], pre: tapeSpeed(0.25)),
+    outputSeconds: (p, s) => s / 0.25,
   ),
   Effect(
     id: 'split_luig_group',
     name: 'Split Luig Group',
-    description: 'Left half normal, right half Luig Group; normal and −1 tracks together.',
+    description:
+        'G-Major 20: hue +0.194 at double saturation, Invert, flipped, wiggling both ways; tracks at −1 and 0.',
     category: EffectCategory.logoEditing,
     credit: 'G-Major 20 (Split Luig Group) · $_wiki',
-    video: (g, input, p, env) {
-      final s = g.split(input, 2);
-      final left = g.v(s[0], 'crop=trunc(iw/4)*2:ih:0:0');
-      final right = g.v(s[1], '$hslInvert,crop=trunc(iw/4)*2:ih:iw-trunc(iw/4)*2:0');
-      return g.join([left, right], 'hstack=inputs=2');
-    },
-    audio: chordFx(const [0, -1]),
+    video: vf(
+      '${addToHue(0.194, saturation: 2)},negate,hflip,${wave(horizontalAmp: 0.012, verticalAmp: 0.012, waves: 2, speed: 22)}',
+    ),
+    audio: chordFx(const [-1.00877, 0]),
   ),
 ];

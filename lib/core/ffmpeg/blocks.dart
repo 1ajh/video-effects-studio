@@ -250,6 +250,41 @@ String gradientMap(String darkHex, String lightHex) {
   return "format=gray,format=rgb24,lutrgb=r='${lut(0)}':g='${lut(1)}':b='${lut(2)}'";
 }
 
+/// Vegas "Gradient Map" with any number of points: each `(position, hex)`
+/// maps that brightness (0 = black … 1 = white) to a color, blending
+/// linearly between points and holding the end colors beyond them.
+String gradientMapStops(List<(double, String)> stops) {
+  final sorted = [...stops]..sort((a, b) => a.$1.compareTo(b.$1));
+  int ch(String hex, int i) => int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
+  String lut(int c) {
+    // Built from the top: beyond the last point, the last color.
+    var expr = '${ch(sorted.last.$2, c)}';
+    for (var i = sorted.length - 2; i >= 0; i--) {
+      final p0 = sorted[i].$1 * 255, p1 = sorted[i + 1].$1 * 255;
+      final c0 = ch(sorted[i].$2, c), c1 = ch(sorted[i + 1].$2, c);
+      final span = math.max(1e-6, p1 - p0);
+      expr = 'if(lt(val,${fmt(p1)}),$c0+(${c1 - c0})*(val-${fmt(p0)})/${fmt(span)},$expr)';
+    }
+    return 'if(lt(val,${fmt(sorted.first.$1 * 255)}),${ch(sorted.first.$2, c)},$expr)';
+  }
+
+  return "format=gray,format=rgb24,lutrgb=r='${lut(0)}':g='${lut(1)}':b='${lut(2)}'";
+}
+
+/// Points spread evenly from black to white.
+String gradientMapEven(List<String> colors) =>
+    gradientMapStops([for (var i = 0; i < colors.length; i++) (i / math.max(1, colors.length - 1), colors[i])]);
+
+/// The G-Major 4 look (Sapphire S_Solarize / the "G-Major 4" color curve):
+/// tones fold over at mid grey, so highlights turn dark again.
+const gMajor4Look = "lutrgb=r='2*min(val,255-val)':g='2*min(val,255-val)':b='2*min(val,255-val)'";
+
+/// Channel Blend "Red Only": green and blue removed.
+const redOnly = 'colorchannelmixer=rr=1:gg=0:bb=0';
+
+/// LAB Adjust "Invert Luminosity": light and dark swap, hues stay.
+const invertLuminosity = 'negate,hue=h=180';
+
 /// FFmpeg pseudocolor presets used as "Gradient Map" presets.
 String pseudocolor(String preset) => 'format=yuv444p,pseudocolor=p=$preset';
 
