@@ -1,9 +1,7 @@
 import 'dart:math' as math;
 
-import 'base.dart';
-import 'composer.dart';
 import 'model.dart';
-import 'sectioning.dart';
+import 'score.dart';
 
 /// A note read from a MIDI/FLP/FLM project, in beats.
 class RawNote {
@@ -39,6 +37,7 @@ class ChartTrack {
   /// Kit pad names by key, when the project stores them.
   final Map<int, String> padNames;
 
+  /// What the track is for when its name says so ("Pitch", "Chorus", "Quote"…).
   SampleRole? get guess => drumKit ? null : guessRole(name, detail);
 
   int get distinctKeys => notes.map((n) => n.key).toSet().length;
@@ -74,12 +73,11 @@ class ChartMarker {
   final String name;
 }
 
-/// A project read from MIDI/FLP/FLM, before lanes are mapped to roles.
+/// A project read from MIDI/FLP/FLM: its tracks, tempo and markers.
 class ChartSource {
   ChartSource({
     required this.name,
     required this.path,
-    required this.kind,
     required this.bpm,
     required this.tracks,
     this.beatsPerBar = 4,
@@ -89,7 +87,6 @@ class ChartSource {
 
   final String name;
   final String path;
-  final BaseKind kind;
   final double bpm;
   final int beatsPerBar;
   final List<ChartTrack> tracks;
@@ -100,142 +97,11 @@ class ChartSource {
 
   int get bars => math.max(1, (lengthBeats / beatsPerBar - 1e-6).ceil());
 
-  /// Initial lane mapping from track names. Tracks left unmapped are parts
-  /// of the base itself.
-  Map<String, SampleRole?> guessMapping() => {for (final t in tracks) t.id: t.guess};
-
-  /// Builds a playable base. When no track is mapped to the pitch lane, the
-  /// sample chart is composed automatically over the project's harmony and
-  /// drums. [transpose] shifts tonal lanes in semitones.
-  SpartaBase toBase(
-    Map<String, SampleRole?> mapping, {
-    int transpose = 0,
-    String? audioPath,
-    double audioOffset = 0,
-    int seed = 1,
-    BaseStyle style = BaseStyle.classic,
-  }) {
-    final byRole = <SampleRole, List<RawNote>>{};
+  /// Where the project's drums hit, in beats: kick, snare (and claps), hats.
+  Map<SampleRole, List<double>> drumHits({Set<String> skip = const {}}) {
+    final out = {SampleRole.kick: <double>[], SampleRole.snare: <double>[], SampleRole.hat: <double>[]};
     for (final t in tracks) {
-      final role = mapping[t.id];
-      if (role == null) continue;
-      byRole.putIfAbsent(role, () => []).addAll(t.notes);
-    }
-    final length = bars * beatsPerBar.toDouble();
-    final base = (byRole[SampleRole.pitch]?.isNotEmpty ?? false)
-        ? _fromLanes(byRole, length, transpose)
-        : _autoChart(mapping, length, transpose, seed, style);
-    return SpartaBase(
-      id: '${kind.name}_${path.hashCode.toUnsigned(32).toRadixString(16)}',
-      name: name,
-      bpm: bpm,
-      kind: kind,
-      beatsPerBar: beatsPerBar,
-      sections: base.sections,
-      chart: base.chart,
-      lengthBeats: length + beatsPerBar,
-      audioPath: audioPath,
-      audioOffset: audioOffset,
-      barRoots: base.barRoots,
-      notes: [...warnings, if (base.autoCharted) 'Sample chart composed automatically over this base.'].join('\n'),
-      chartShift: base.shift,
-      composedRoles: base.roles,
-    );
-  }
-
-  ({
-    List<ChartNote> chart,
-    List<Section> sections,
-    List<int> barRoots,
-    bool autoCharted,
-    int? shift,
-    Set<SampleRole> roles,
-  })
-  _fromLanes(Map<SampleRole, List<RawNote>> byRole, double length, int transpose) {
-    final chart = <ChartNote>[];
-    // Tonal lanes share one root so harmony between them is preserved.
-    final tonal = [...?byRole[SampleRole.pitch], ...?byRole[SampleRole.chop]];
-    final tonalRoot = rootKeyFor(tonal);
-    for (final e in byRole.entries) {
-      final role = e.key;
-      final notes = e.value..sort((a, b) => a.beat.compareTo(b.beat));
-      final root = switch (role) {
-        SampleRole.pitch || SampleRole.chop => tonalRoot - transpose,
-        SampleRole.quote => null,
-        _ => _modeKey(notes),
-      };
-      for (final n in notes) {
-        var semi = root == null ? 0 : n.key - root;
-        if (role.isPercussion) semi = semi.clamp(-12, 12);
-        chart.add(
-          ChartNote(role: role, beat: n.beat, length: math.max(1 / 16, n.length), semitone: semi, velocity: n.velocity),
-        );
-      }
-    }
-    // Missing drum lanes follow the base's own kick/snare/hats.
-    for (final role in const [SampleRole.kick, SampleRole.snare, SampleRole.hat]) {
-      if (byRole.containsKey(role)) continue;
-      chart.addAll(_drumLane(role, const {}));
-    }
-    chart.sort((a, b) => a.beat.compareTo(b.beat));
-    return (
-      chart: chart,
-      sections: inferSections(chart, length),
-      barRoots: const <int>[],
-      autoCharted: false,
-      shift: null,
-      roles: const <SampleRole>{},
-    );
-  }
-
-  ({
-    List<ChartNote> chart,
-    List<Section> sections,
-    List<int> barRoots,
-    bool autoCharted,
-    int? shift,
-    Set<SampleRole> roles,
-  })
-  _autoChart(Map<String, SampleRole?> mapping, double length, int transpose, int seed, BaseStyle style) {
-    final parts = tracks.where((t) => mapping[t.id] == null).toList();
-    final tonalNotes = [
-      for (final t in parts)
-        if (!t.isDrums) ...t.notes,
-    ];
-    final tonic = tonalNotes.isEmpty ? 2 : tonicPitchClass(tonalNotes);
-    final shift = _wrap(tonic - 2) + transpose;
-    final roots = barRootsFor(parts, bars, beatsPerBar, tonic);
-
-    // Sections: named markers, or blocks labelled by how busy the base is.
-    final density = <ChartNote>[
-      for (final t in parts)
-        for (final n in t.notes)
-          ChartNote(role: t.isDrums ? SampleRole.kick : SampleRole.pitch, beat: n.beat, length: n.length),
-    ];
-    final sections = inferSections(density, length);
-    final plan = [for (final s in sections) SectionPlan(s.kind, math.max(1, (s.lengthBeats / beatsPerBar).round()))];
-    final composed = Composer(style: style, seed: seed).compose(plan, barRoots: roots).base;
-    final chart = <ChartNote>[
-      for (final n in composed.chart)
-        if (n.beat < length) n.role.isTonal ? n.copyWith(semitone: n.semitone + shift) : n,
-    ];
-    // Where the base has its own kick/snare, lock the sample drums to them.
-    final drums = _drumOnsets(parts);
-    final roles = {SampleRole.pitch, SampleRole.chop, SampleRole.kick, SampleRole.snare, SampleRole.hat};
-    for (final role in const [SampleRole.kick, SampleRole.snare]) {
-      if (drums[role]!.length < bars) continue;
-      chart.removeWhere((n) => n.role == role);
-      chart.addAll(_drumLane(role, mapping));
-      roles.remove(role);
-    }
-    chart.sort((a, b) => a.beat.compareTo(b.beat));
-    return (chart: chart, sections: sections, barRoots: roots, autoCharted: true, shift: shift, roles: roles);
-  }
-
-  Map<SampleRole, List<RawNote>> _drumOnsets(List<ChartTrack> parts) {
-    final out = {SampleRole.kick: <RawNote>[], SampleRole.snare: <RawNote>[], SampleRole.hat: <RawNote>[]};
-    for (final t in parts) {
-      if (!t.isDrums) continue;
+      if (skip.contains(t.id) || !t.isDrums) continue;
       for (final n in t.notes) {
         final role = switch (t.instrumentFor(n)) {
           Instrument.kick => SampleRole.kick,
@@ -243,42 +109,33 @@ class ChartSource {
           Instrument.hat || Instrument.openHat => SampleRole.hat,
           _ => null,
         };
-        if (role != null) out[role]!.add(n);
+        if (role != null) out[role]!.add(n.beat);
       }
     }
-    return out;
-  }
-
-  List<ChartNote> _drumLane(SampleRole role, Map<String, SampleRole?> mapping) {
-    final parts = tracks.where((t) => mapping[t.id] == null).toList();
-    final hits = _drumOnsets(parts)[role]!..sort((a, b) => a.beat.compareTo(b.beat));
-    final out = <ChartNote>[];
-    var last = -1.0;
-    for (final n in hits) {
-      if (n.beat - last < 1 / 8) continue; // merge layered hits
-      last = n.beat;
-      out.add(ChartNote(role: role, beat: n.beat, length: 0.5, velocity: n.velocity));
+    for (final e in out.entries) {
+      e.value.sort();
+      // Layered hits (two kick samples, clap on the snare) count once.
+      final merged = <double>[];
+      for (final b in e.value) {
+        if (merged.isEmpty || b - merged.last >= 1 / 8) merged.add(b);
+      }
+      out[e.key] = merged;
     }
     return out;
   }
 
-  /// Sections from markers when present, otherwise from how the project's
-  /// parts play (see [sectionsFromTracks]).
-  List<Section> inferSections(List<ChartNote> chart, double length) {
+  /// Sections from the project's time markers or section-named patterns.
+  List<Section> markedSections(double length) {
     final named = markers.where((m) => m.beat < length).toList()..sort((a, b) => a.beat.compareTo(b.beat));
-    if (named.isNotEmpty) {
-      final out = <Section>[];
-      if (named.first.beat > 0) out.add(Section(SectionKind.intro, 0, named.first.beat));
-      for (var i = 0; i < named.length; i++) {
-        final end = i + 1 < named.length ? named[i + 1].beat : length;
-        if (end <= named[i].beat) continue;
-        out.add(Section(sectionKindFor(named[i].name), named[i].beat, end, name: named[i].name));
-      }
-      if (out.isNotEmpty) return out;
+    final out = <Section>[];
+    if (named.isEmpty) return out;
+    if (named.first.beat > 0) out.add(Section(SectionKind.intro, 0, named.first.beat));
+    for (var i = 0; i < named.length; i++) {
+      final end = i + 1 < named.length ? named[i + 1].beat : length;
+      if (end <= named[i].beat) continue;
+      out.add(Section(sectionKindFor(named[i].name), named[i].beat, end, name: named[i].name));
     }
-    final fromParts = sectionsFromTracks(tracks, (length / beatsPerBar).round(), beatsPerBar);
-    if (fromParts.isNotEmpty) return fromParts;
-    return autoSections(chart, length, beatsPerBar);
+    return out;
   }
 }
 
@@ -294,7 +151,7 @@ List<Section> autoSections(List<ChartNote> chart, double length, int beatsPerBar
   for (final n in chart) {
     final b = (n.beat / block).floor().clamp(0, count - 1);
     if (n.role == SampleRole.quote && quoteBlock < 0) quoteBlock = b;
-    density[b] += n.role.isTonal ? 1 : 0.5;
+    density[b] += n.role == SampleRole.pitch || n.role == SampleRole.word ? 1 : 0.5;
   }
   final ranked = List.generate(count, (i) => i)..sort((a, b) => density[b].compareTo(density[a]));
   final kinds = List<SectionKind>.filled(count, SectionKind.chorus);
@@ -375,7 +232,9 @@ List<ChartMarker> markersFromNamedParts(List<({double beat, double length, Strin
 SectionKind sectionKindFor(String name) {
   final s = name.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
   if (s.contains('intro') || s.contains('quote') || s.contains('begin')) return SectionKind.intro;
-  if (s.contains('dun') || s.contains('denden')) return SectionKind.dundundenden;
+  if (s.contains('dun') || s.contains('denden') || s.contains('buildup')) return SectionKind.dundundenden;
+  if (s.contains('preepic')) return SectionKind.preEpicness;
+  if (s.contains('postepic')) return SectionKind.postEpicness;
   if (s.contains('epic')) return SectionKind.epicness;
   if (s.contains('mad') || s.contains('chaos') || s.contains('crazy')) return SectionKind.madness;
   if (s.contains('awesom') || s.contains('climax') || s.contains('drop')) return SectionKind.awesomeness;
@@ -392,7 +251,7 @@ SampleRole? guessRole(String name, [String detail = '']) {
   if (has(const ['quote', 'intro sample', 'this is sparta', 'leonidas', 'speech', 'dialog', 'voice line'], s)) {
     return SampleRole.quote;
   }
-  if (has(const ['chop', 'chorus sample', 'stutter', 'sample chop'], s)) return SampleRole.chop;
+  if (has(const ['chop', 'chorus sample', 'stutter', 'sample chop', 'chorus word'], s)) return SampleRole.word;
   if (has(const ['pitch', 'melody sample', 'vocal', 'voice', 'sample lead', 'placeholder', 'your sample'], s)) {
     return SampleRole.pitch;
   }
@@ -452,6 +311,9 @@ Instrument drumForKey(int key, {bool pads = false}) {
   };
 }
 
+/// D Phrygian (== G natural minor) in semitones above D.
+const phrygian = [0, 1, 3, 5, 7, 8, 10];
+
 /// Pitch class (C = 0) of the Phrygian mode (the Sparta tonality) whose
 /// notes cover the project's pitches best; D = 2 on near-ties.
 ///
@@ -479,95 +341,16 @@ int tonicPitchClass(List<RawNote> notes) {
   return best;
 }
 
-/// Harmonic root of every bar (semitones from the tonic, -6..5), from the
-/// lowest sustained notes of the tonal parts.
-List<int> barRootsFor(List<ChartTrack> parts, int bars, int beatsPerBar, int tonic) {
-  final tonal = parts.where((t) => !t.isDrums && t.notes.isNotEmpty).toList();
-  final roots = List<int>.filled(bars, 0);
-  var previous = 0;
-  for (var b = 0; b < bars; b++) {
-    final start = b * beatsPerBar.toDouble(), end = start + beatsPerBar;
-    final weights = List<double>.filled(12, 0);
-    var lowest = 1000;
-    final inBar = <RawNote>[
-      for (final t in tonal)
-        for (final n in t.notes)
-          if (n.beat < end && n.end > start) n,
-    ];
-    for (final n in inBar) {
-      lowest = math.min(lowest, n.key);
-    }
-    for (final n in inBar) {
-      final overlap = math.min(end, n.end) - math.max(start, n.beat);
-      final lowBoost = n.key <= lowest + 7 ? 3.0 : 1.0;
-      final downbeat = (n.beat - start).abs() < 0.26 ? 1.5 : 1.0;
-      weights[n.key % 12] += math.max(0.05, overlap) * lowBoost * downbeat;
-    }
-    var best = -1;
-    for (var p = 0; p < 12; p++) {
-      if (weights[p] > 0 && (best < 0 || weights[p] > weights[best])) best = p;
-    }
-    previous = best < 0 ? previous : _wrap(best - tonic);
-    roots[b] = previous;
-  }
-  return roots;
-}
-
-/// Finds the key that corresponds to D for a tonal lane: the transposition
-/// whose pitch classes fit D Phrygian best (preferring the conventional
-/// D = 62 or C5 = 60 roots on near-ties), placed at the lane's low end.
-int rootKeyFor(List<RawNote> notes) {
-  if (notes.isEmpty) return 62;
-  final pc = List<double>.filled(12, 0);
-  for (final n in notes) {
-    pc[n.key % 12] += math.max(0.125, n.length);
-  }
-  double fit(int o) => phrygian.fold(0.0, (s, d) => s + pc[(o + d) % 12]);
-  var best = 2;
-  var bestFit = fit(2);
-  for (var o = 0; o < 12; o++) {
-    final f = fit(o);
-    if (f > bestFit * 1.08) {
-      best = o;
-      bestFit = f;
-    }
-  }
-  if (best != 2 && fit(2) >= bestFit * 0.97) best = 2;
-  if (best != 2 && best != 0 && fit(0) >= bestFit * 0.97) best = 0;
-  final keys = notes.map((n) => n.key).toList()..sort();
-  final low = keys[(keys.length * 0.15).floor()];
-  // Largest key with this pitch class at or below the lane's low end.
-  var root = low - ((low - best) % 12);
-  if (keys.last - root > 30) root += 12;
-  return root;
-}
-
-int _wrap(int semis) => ((semis % 12) + 18) % 12 - 6;
-
-int _modeKey(List<RawNote> notes) {
-  final count = <int, int>{};
-  for (final n in notes) {
-    count[n.key] = (count[n.key] ?? 0) + 1;
-  }
-  return count.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-}
-
-/// Re-synthesizes an imported project's own parts (everything not mapped
-/// to a sample lane) so a base works without a rendered audio file.
-Composition resynthesize(
-  ChartSource src,
-  SpartaBase base,
-  Map<String, SampleRole?> mapping, {
-  BaseStyle style = BaseStyle.classic,
-  int seed = 1,
-}) {
-  final score = <ScoreEvent>[];
+/// Re-synthesizes a project's own parts (tracks not in [skip]) so a base
+/// works without its rendered audio.
+Score resynthesize(ChartSource src, {Set<String> skip = const {}, int seed = 1}) {
+  final events = <ScoreEvent>[];
   for (final t in src.tracks) {
-    if (mapping[t.id] != null) continue;
+    if (skip.contains(t.id)) continue;
     for (final n in t.notes) {
       final inst = t.instrumentFor(n);
       final drum = t.isDrums || const {Instrument.kick, Instrument.snare, Instrument.hat}.contains(inst);
-      score.add(
+      events.add(
         ScoreEvent(
           inst,
           n.beat,
@@ -578,6 +361,7 @@ Composition resynthesize(
       );
     }
   }
-  score.sort((a, b) => a.beat.compareTo(b.beat));
-  return Composition(base, score, style: style, seed: seed);
+  events.sort((a, b) => a.beat.compareTo(b.beat));
+  final length = (src.bars + 1) * src.beatsPerBar.toDouble();
+  return Score(events, bpm: src.bpm, lengthBeats: length, seed: seed);
 }

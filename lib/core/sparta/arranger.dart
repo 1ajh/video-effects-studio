@@ -31,7 +31,7 @@ class MixSettings {
   final double baseDb;
   final Map<SampleRole, double> laneDb;
 
-  /// Reverb send on the pitch/chop buses (0..1).
+  /// Reverb send on the pitch / word buses (0..1).
   final double reverb;
 
   /// How far the base dips under the quote.
@@ -60,9 +60,13 @@ class PlacedEvent {
     required this.velocity,
     required this.sectionIndex,
     required this.laneIndex,
+    this.slot = '',
   });
 
   final SampleRole role;
+
+  /// Word hits: the word / syllable key that played ('1', '3A'…).
+  final String slot;
 
   /// Which of the role's samples played (multiple sources alternate).
   final int variant;
@@ -85,7 +89,7 @@ class PlacedEvent {
 }
 
 /// Stems written next to the master.
-enum Stem { base, pitch, chop, drums, quote }
+enum Stem { base, pitch, words, drums, quote }
 
 class RemixMix {
   RemixMix({required this.master, required this.stems, required this.events, required this.lufs, required this.peakDb});
@@ -107,6 +111,8 @@ class Arranger {
     this.baseAudio,
     this.settings = const MixSettings(),
     this.sampleRate = 48000,
+    this.shuffleSamples = false,
+    this.seed = 1,
   });
 
   final SpartaBase base;
@@ -114,14 +120,19 @@ class Arranger {
   /// Stereo base instrumental at [sampleRate] (null: samples only).
   final AudioBuffer? baseAudio;
 
-  /// Playable samples per role; several per role alternate.
+  /// Playable samples per role; several pitch / percussion samples
+  /// alternate by section, word samples are picked by their slot.
   final Map<SampleRole, List<ProcessedSample>> samples;
   final MixSettings settings;
   final int sampleRate;
 
+  /// Random mode: which of a role's samples plays changes per section.
+  final bool shuffleSamples;
+  final int seed;
+
   static const _laneGain = {
     SampleRole.pitch: 0.52,
-    SampleRole.chop: 0.42,
+    SampleRole.word: 0.5,
     SampleRole.kick: 0.5,
     SampleRole.snare: 0.42,
     SampleRole.hat: 0.22,
@@ -154,11 +165,20 @@ class Arranger {
           }
         }
         final sectionIndex = _sectionIndex(n.beat);
-        final variant = switch (role) {
-          SampleRole.pitch || SampleRole.quote => sectionIndex % list.length,
-          SampleRole.chop => i % list.length,
-          _ => (sectionIndex ~/ 2) % list.length,
-        };
+        final int variant;
+        if (role == SampleRole.word) {
+          final key = wordKeyFor(n.slot.isEmpty ? '1' : n.slot, [for (final s in list) s.slot]);
+          final at = list.indexWhere((s) => s.slot == key);
+          if (at < 0) continue;
+          variant = at;
+        } else if (shuffleSamples && list.length > 1) {
+          variant = math.Random(seed * 7919 + sectionIndex * 104729 + role.index).nextInt(list.length);
+        } else {
+          variant = switch (role) {
+            SampleRole.pitch || SampleRole.quote => sectionIndex % list.length,
+            _ => (sectionIndex ~/ 2) % list.length,
+          };
+        }
         final sample = list[variant];
         final rate = math.pow(2, n.semitone / 12).toDouble();
         final natural = sample.audio.length / sampleRate / rate;
@@ -177,6 +197,7 @@ class Arranger {
             velocity: n.velocity,
             sectionIndex: sectionIndex,
             laneIndex: i,
+            slot: role == SampleRole.word ? sample.slot : '',
           ),
         );
       }
@@ -221,11 +242,7 @@ class Arranger {
         hit[i] *= 1 - (i - body) / math.max(1, len - body);
       }
       final gain = _laneGain[e.role]! * dbToGain(settings.laneDb[e.role] ?? 0) * (0.35 + 0.65 * e.velocity);
-      final pan = switch (e.role) {
-        SampleRole.chop => e.laneIndex.isEven ? -0.22 : 0.22,
-        SampleRole.hat => 0.3,
-        _ => 0.0,
-      };
+      final pan = e.role == SampleRole.hat ? 0.3 : 0.0;
       mixInto(laneBus[e.role]!, hit, (e.start * sampleRate).round(), gain: gain, pan: pan);
     }
 
@@ -236,9 +253,9 @@ class Arranger {
     compress(pitch, sampleRate, channels: 2, thresholdDb: -20, ratio: 3, attackMs: 3, releaseMs: 90, makeupDb: 3);
     _haas(pitch, 0.012, -9);
 
-    final chop = laneBus[SampleRole.chop]!;
-    _eq(chop, [Biquad.highPass(sr, 120), Biquad.peak(sr, 4000, 2, q: 0.9)]);
-    compress(chop, sampleRate, channels: 2, thresholdDb: -18, ratio: 4, attackMs: 1, releaseMs: 60, makeupDb: 2);
+    final words = laneBus[SampleRole.word]!;
+    _eq(words, [Biquad.highPass(sr, 100), Biquad.peak(sr, 4000, 2, q: 0.9)]);
+    compress(words, sampleRate, channels: 2, thresholdDb: -18, ratio: 4, attackMs: 1, releaseMs: 60, makeupDb: 2);
 
     final drums = Float32List(frames * 2);
     for (final r in const [SampleRole.kick, SampleRole.snare, SampleRole.hat]) {
@@ -257,7 +274,7 @@ class Arranger {
     if (settings.reverb > 0) {
       final send = Float32List(frames * 2);
       for (var i = 0; i < send.length; i++) {
-        send[i] = (pitch[i] + chop[i] * 0.7) * settings.reverb;
+        send[i] = (pitch[i] + words[i] * 0.5) * settings.reverb;
       }
       final wet = Reverb(sampleRate: sampleRate, room: 0.7, damp: 0.45).process(send);
       for (var i = 0; i < wet.length; i++) {
@@ -283,7 +300,7 @@ class Arranger {
 
     // Master ------------------------------------------------------------------
     final master = Float32List(frames * 2);
-    for (final x in [baseBus, pitch, chop, drums, quote]) {
+    for (final x in [baseBus, pitch, words, drums, quote]) {
       for (var i = 0; i < master.length; i++) {
         master[i] += x[i];
       }
@@ -297,7 +314,7 @@ class Arranger {
           ? {
               Stem.base: AudioBuffer(baseBus, sampleRate: sampleRate, channels: 2),
               Stem.pitch: AudioBuffer(pitch, sampleRate: sampleRate, channels: 2),
-              Stem.chop: AudioBuffer(chop, sampleRate: sampleRate, channels: 2),
+              Stem.words: AudioBuffer(words, sampleRate: sampleRate, channels: 2),
               Stem.drums: AudioBuffer(drums, sampleRate: sampleRate, channels: 2),
               Stem.quote: AudioBuffer(quote, sampleRate: sampleRate, channels: 2),
             }

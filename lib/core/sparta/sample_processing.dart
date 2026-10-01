@@ -19,12 +19,15 @@ class ProcessedSample {
 
   final SampleRole role;
 
+  /// Word samples: the line's word / syllable this is ('1', '3A'…).
+  String get slot => candidate.slot;
+
   /// Mono, 48 kHz. Pitch samples are sustained (several seconds long).
   final Float32List audio;
   final SampleCandidate candidate;
   final String sourcePath;
 
-  /// Frequency of the root note (a D) for tonal samples.
+  /// Frequency the pitch sample was tuned to (the base's root note).
   final double rootHz;
 
   /// Length of the original material before sustain.
@@ -33,28 +36,80 @@ class ProcessedSample {
   static const sampleRate = 48000;
 }
 
+/// How the pitch sample is tuned to the base's key.
+enum PitchTuning {
+  hard('Hard-tuned', 'Flat on the note: the classic Sparta pitch'),
+  natural('Natural', "On the note, keeping the voice's own wobble");
+
+  const PitchTuning(this.label, this.blurb);
+  final String label;
+  final String blurb;
+}
+
+/// A pitch candidate the tuner can't follow (no steady pitch to tune):
+/// it's skipped rather than used off-key.
+class UntunableSample implements Exception {
+  UntunableSample(this.candidate);
+  final SampleCandidate candidate;
+  @override
+  String toString() => 'That pitch sample has no steady pitch to tune — pick another one.';
+}
+
 /// Options for sample enhancement.
 class EnhanceOptions {
-  const EnhanceOptions({this.chorusCrisp = true, this.layerDrums = true, this.sustainSeconds = 4.0, this.forceOctave});
+  const EnhanceOptions({
+    this.chorusCrisp = true,
+    this.layerDrums = false,
+    this.sustainSeconds = 4.0,
+    this.forceOctave,
+    this.tuning = PitchTuning.hard,
+  });
 
-  /// Doubled-attack layering on chops (Chorus Crisp technique).
+  /// Doubled-attack splice on chorus words (the Chorus Crisp technique: it
+  /// edits the word itself, nothing is added).
   final bool chorusCrisp;
 
-  /// Layer synthesized bodies under source percussion so it always hits.
+  /// Layer a synthesized body under the percussion. Off by default: sound
+  /// that isn't from the source is a "fake sample".
   final bool layerDrums;
 
   /// How long pitch samples can be held.
   final double sustainSeconds;
 
-  /// Force the D octave for tonal samples (2..5); null picks the nearest.
+  /// Force the pitch sample's octave (2..5); null picks the nearest.
   final int? forceOctave;
+  final PitchTuning tuning;
+
+  EnhanceOptions copyWith({
+    bool? chorusCrisp,
+    bool? layerDrums,
+    double? sustainSeconds,
+    int? forceOctave,
+    bool clearOctave = false,
+    PitchTuning? tuning,
+  }) => EnhanceOptions(
+    chorusCrisp: chorusCrisp ?? this.chorusCrisp,
+    layerDrums: layerDrums ?? this.layerDrums,
+    sustainSeconds: sustainSeconds ?? this.sustainSeconds,
+    forceOctave: clearOctave ? null : (forceOctave ?? this.forceOctave),
+    tuning: tuning ?? this.tuning,
+  );
+
+  String get key => '$chorusCrisp|$layerDrums|$sustainSeconds|$forceOctave|${tuning.name}';
 }
 
-/// Turns raw candidate audio into Sparta-ready instruments.
+/// Turns raw candidate audio into Sparta-ready instruments. Every sample is
+/// edited from its own audio only (EQ, dynamics, tuning, Chorus Crisp);
+/// nothing from elsewhere is mixed in unless [EnhanceOptions.layerDrums]
+/// is switched on.
 class SampleEnhancer {
-  SampleEnhancer({this.options = const EnhanceOptions(), int seed = 7}) : _rng = math.Random(seed);
+  SampleEnhancer({this.options = const EnhanceOptions(), this.rootPc = 2, int seed = 7}) : _rng = math.Random(seed);
 
   final EnhanceOptions options;
+
+  /// Pitch class of the base's root (0 = C … 11 = B): the pitch sample is
+  /// tuned to it, so the base's notes play in key.
+  final int rootPc;
   final math.Random _rng;
   static const sr = ProcessedSample.sampleRate;
 
@@ -63,9 +118,9 @@ class SampleEnhancer {
     final x = Float32List.fromList(mono);
     switch (c.role) {
       case SampleRole.pitch:
-        return _tonal(c, x, sourcePath, sustain: true);
-      case SampleRole.chop:
-        return _tonal(c, x, sourcePath, sustain: false);
+        return _pitch(c, x, sourcePath);
+      case SampleRole.word:
+        return _word(c, x, sourcePath);
       case SampleRole.kick:
         return _kick(c, x, sourcePath);
       case SampleRole.snare:
@@ -77,39 +132,47 @@ class SampleEnhancer {
     }
   }
 
-  double? _octaveHz() {
-    final o = options.forceOctave;
-    if (o == null) return null;
-    return 293.6648 * math.pow(2, o - 4).toDouble();
-  }
-
-  ProcessedSample _tonal(SampleCandidate c, Float32List x, String src, {required bool sustain}) {
+  ProcessedSample _pitch(SampleCandidate c, Float32List x, String src) {
     Biquad.highPass(sr.toDouble(), 90).process(x);
     var body = trimSilence(x, sr, thresholdDb: -38);
     if (body.isEmpty) body = x;
     final natural = body.length / sr;
+    final o = options.forceOctave;
     final corrected = psolaCorrect(
       body,
       sr,
-      targetHz: _octaveHz(),
-      lengthSeconds: sustain ? math.max(natural, options.sustainSeconds) : natural,
+      targetHz: o == null ? null : 440 * math.pow(2, (12 * (o + 1) + rootPc - 69) / 12).toDouble(),
+      pitchClass: rootPc,
+      lengthSeconds: math.max(natural, options.sustainSeconds),
+      follow: options.tuning == PitchTuning.natural ? 1 : 0,
     );
-    // Unpitchable material still gets used, just untuned.
-    var out = corrected?.audio ?? body;
-    if (!sustain && options.chorusCrisp) out = chorusCrisp(out, sr);
+    if (corrected == null) throw UntunableSample(c);
+    final out = corrected.audio;
     // Gentle presence and a little glue.
     Biquad.peak(sr.toDouble(), 3000, 2.5, q: 0.8).process(out);
     compress(out, sr, thresholdDb: -20, ratio: 3, attackMs: 3, releaseMs: 80);
-    fade(out, sr, inMs: 1.5, outMs: sustain ? 30 : 10);
+    fade(out, sr, inMs: 1.5, outMs: 30);
     _normalize(out, 0.9);
     return ProcessedSample(
       role: c.role,
       audio: out,
       candidate: c,
       sourcePath: src,
-      rootHz: corrected?.targetHz ?? c.f0,
+      rootHz: corrected.targetHz,
       naturalSeconds: natural,
     );
+  }
+
+  /// A chorus word: raw (not tuned), cleaned up, optionally Chorus Crisp.
+  ProcessedSample _word(SampleCandidate c, Float32List x, String src) {
+    Biquad.highPass(sr.toDouble(), 70).process(x);
+    var out = x;
+    if (options.chorusCrisp) out = chorusCrisp(out, sr);
+    Biquad.peak(sr.toDouble(), 3500, 2, q: 0.9).process(out);
+    compress(out, sr, thresholdDb: -20, ratio: 3, attackMs: 2, releaseMs: 70);
+    fade(out, sr, inMs: 1, outMs: 8);
+    _normalize(out, 0.9);
+    return ProcessedSample(role: c.role, audio: out, candidate: c, sourcePath: src, naturalSeconds: x.length / sr);
   }
 
   ProcessedSample _kick(SampleCandidate c, Float32List x, String src) {
@@ -165,7 +228,7 @@ class SampleEnhancer {
 
   // ---------------------------------------------------------------------------
 
-  /// Splits a chop 35 ms in, pulls the second part back so the attack
+  /// Splits a word 35 ms in, pulls the second part back so the attack
   /// doubles, crossfades and ducks it 3 dB ("Chorus Crisp", Standard preset).
   static Float32List chorusCrisp(
     Float32List x,

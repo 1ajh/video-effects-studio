@@ -4,53 +4,102 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_effects_studio/core/audio/audio_buffer.dart';
 import 'package:video_effects_studio/core/sparta/audio_base.dart';
+import 'package:video_effects_studio/core/sparta/audio_transcriber.dart';
 import 'package:video_effects_studio/core/sparta/base_renderer.dart';
-import 'package:video_effects_studio/core/sparta/composer.dart';
-import 'package:video_effects_studio/core/sparta/model.dart';
+import 'package:video_effects_studio/core/sparta/score.dart';
+import 'package:video_effects_studio/core/sparta/transcription.dart';
+
+/// A Sparta-style base: kick on every beat, snare on 2 and 4, hats on the
+/// off-beats, orchestra stabs playing the chorus pitch pattern
+/// (0 0 +1 +1 -2 -2 +1 +1 from D5) and a bass following it, at 140 BPM.
+Score sampleScore({int bars = 24, double bpm = 140}) {
+  const pattern = [0, 0, 1, 1, -2, -2, 1, 1];
+  final events = <ScoreEvent>[];
+  for (var b = 0; b < bars; b++) {
+    for (var k = 0; k < 4; k++) {
+      final beat = b * 4.0 + k;
+      // The kick leans on beat 1, as in real bases; a crash opens every 4 bars.
+      events.add(ScoreEvent(Instrument.kick, beat, 0.25, velocity: k == 0 ? 1 : 0.75));
+      if (k.isOdd) events.add(ScoreEvent(Instrument.snare, beat, 0.25, velocity: 0.7));
+      if (k == 0 && b % 4 == 0) events.add(ScoreEvent(Instrument.crash, beat, 2));
+      // A low boom marks every bar line (the "dun" of the base).
+      if (k == 0) events.add(ScoreEvent(Instrument.tom, beat, 1, midi: const [38]));
+      events.add(ScoreEvent(Instrument.hat, beat + 0.5, 0.25, velocity: 0.7));
+      final semi = pattern[(b % 2) * 4 + k];
+      // Octave hits (a fifth stacked on top would read equally well as the
+      // pattern from the fifth: audio alone can't tell those apart).
+      events.add(ScoreEvent(Instrument.stab, beat, 0.45, midi: [74.0 + semi, 86.0 + semi]));
+      events.add(ScoreEvent(Instrument.bass, beat, 0.45, midi: [38.0 + semi]));
+      events.add(ScoreEvent(Instrument.bass, beat + 0.5, 0.45, midi: [50.0 + semi]));
+    }
+  }
+  return Score(events, bpm: bpm, lengthBeats: bars * 4.0 + 4);
+}
+
+AudioBuffer withLeadIn(AudioBuffer audio, double lead) {
+  final pad = (lead * audio.sampleRate).round() * audio.channels;
+  final data = Float32List(pad + audio.data.length)..setRange(pad, pad + audio.data.length, audio.data);
+  return AudioBuffer(data, sampleRate: audio.sampleRate, channels: audio.channels);
+}
+
+double f1(List<double> truth, List<double> found, {double tol = 0.05}) {
+  if (truth.isEmpty || found.isEmpty) return truth.isEmpty && found.isEmpty ? 1 : 0;
+  var hit = 0;
+  final used = <int>{};
+  for (final t in truth) {
+    for (var i = 0; i < found.length; i++) {
+      if (!used.contains(i) && (found[i] - t).abs() <= tol) {
+        used.add(i);
+        hit++;
+        break;
+      }
+    }
+  }
+  final p = hit / found.length, r = hit / truth.length;
+  return p + r == 0 ? 0 : 2 * p * r / (p + r);
+}
 
 void main() {
-  for (final (style, lead) in [(BaseStyle.classic, 1.3), (BaseStyle.hyper, 0.45), (BaseStyle.venom, 2.0)]) {
-    test('recovers tempo, first bar and harmony of a ${style.name} base with ${lead}s lead-in', () {
-      final comp = Composer(
-        style: style,
-        seed: 5,
-      ).compose(defaultPlan(enabled: {SectionKind.chorus, SectionKind.dundundenden, SectionKind.awesomeness}));
-      final audio = BaseRenderer().render(comp);
-      // Prepend silence so beat 0 is not at the file start.
-      final pad = (lead * 48000).round() * 2;
-      final data = Float32List(pad + audio.data.length)..setRange(pad, pad + audio.data.length, audio.data);
-      final shifted = AudioBuffer(data, sampleRate: 48000, channels: 2);
+  final rendered = BaseRenderer().render(sampleScore());
 
-      final sw = Stopwatch()..start();
-      final a = AudioBaseAnalyzer().analyze(shifted);
-      // ignore: avoid_print
-      print(
-        '${style.name}: ${a.bpm} BPM (conf ${a.tempoConfidence.toStringAsFixed(2)}), '
-        'bar 1 at ${a.firstDownbeat.toStringAsFixed(3)}s, ${a.bars} bars, tonic ${a.tonicPc} '
-        'in ${sw.elapsedMilliseconds} ms',
-      );
-      expect(a.bpm, closeTo(style.bpm, 0.5));
-      final bar = 240 / style.bpm;
-      // Downbeat within 30 ms of the true bar grid.
+  for (final lead in [1.3, 0.45]) {
+    test('recovers tempo, first bar and key of a base with a ${lead}s lead-in', () {
+      final a = AudioBaseAnalyzer().analyze(withLeadIn(rendered, lead));
+      expect(a.bpm, closeTo(140, 0.5));
+      const bar = 240 / 140;
       final err = ((a.firstDownbeat - lead) / bar - ((a.firstDownbeat - lead) / bar).round()) * bar;
       expect(err.abs(), lessThan(0.03));
       expect(a.tonicPc, 2);
-      // Roots of whole bars (skip bars that start before the music does).
-      final skipBars = ((lead - a.firstDownbeat) / bar).round();
-      var agree = 0, total = 0;
-      for (var b = 0; b < comp.base.barRoots.length; b++) {
-        final i = b + skipBars;
-        if (i < 0 || i >= a.barRoots.length) continue;
-        total++;
-        if (a.barRoots[i] == comp.base.barRoots[b]) agree++;
-      }
-      expect(agree / total, greaterThan(0.7), reason: '$agree / $total');
-
-      final base = AudioBaseAnalyzer().toBase(a, name: 'x', audioPath: 'x.wav');
-      expect(base.lane(SampleRole.pitch), isNotEmpty);
-      expect(base.audioOffset, a.firstDownbeat);
     });
   }
+
+  test('transcribes the drums and the chorus pitch pattern from audio', () {
+    const lead = 0.8;
+    final a = AudioBaseAnalyzer().analyze(withLeadIn(rendered, lead));
+    final t = AudioTranscriber().transcribe(a, name: 'synth');
+    expect(t.rootPitchClass, 2);
+    expect(t.source, TranscriptionSource.audio);
+    const spb = 60 / 140;
+    // Ground truth in seconds of the audio file.
+    final truthKick = [for (var b = 0; b < 24 * 4; b++) lead + b * spb];
+    final truthSnare = [for (var b = 1; b < 24 * 4; b += 2) lead + b * spb];
+    List<double> sec(List<double> beats) => [for (final b in beats) t.audioOffset + b * spb];
+    expect(f1(truthKick, sec(t.kick)), greaterThan(0.85));
+    expect(f1(truthSnare, sec(t.snare)), greaterThan(0.6));
+    // The pitch guide plays the chorus pattern: compare pitch classes on the beats.
+    var agree = 0, total = 0;
+    for (final h in t.hits) {
+      final sTime = t.audioOffset + h.beat * spb - lead;
+      final beatIndex = (sTime / spb).round();
+      if ((sTime / spb - beatIndex).abs() > 0.1 || beatIndex < 0 || beatIndex >= 96) continue;
+      total++;
+      const pattern = [0, 0, 1, 1, -2, -2, 1, 1];
+      if ((h.semitone - pattern[beatIndex % 8]) % 12 == 0) agree++;
+    }
+    expect(total, greaterThan(40));
+    expect(agree / total, greaterThan(0.75), reason: '$agree / $total');
+    expect(t.patterns, isNotEmpty);
+  });
 
   test('finds beat 1 under loud off-beat open hats and reads G minor over a tuned kick', () {
     // What fooled the analyser on real Sparta bases: open hats between the
@@ -115,17 +164,11 @@ void main() {
   });
 
   test('an exact tempo is used as given, and bar 1 stays on the real bar grid at half or double time', () {
-    final comp = Composer(
-      style: BaseStyle.venom,
-      seed: 2,
-    ).compose(defaultPlan(enabled: {SectionKind.chorus, SectionKind.epicness, SectionKind.madness}));
-    final audio = BaseRenderer().render(comp);
-    final bar = 240 / BaseStyle.venom.bpm;
-    for (final tempo in [BaseStyle.venom.bpm / 2, BaseStyle.venom.bpm * 2]) {
-      final a = AudioBaseAnalyzer().analyze(audio, tempo: tempo);
+    const bar = 240 / 140;
+    for (final tempo in [70.0, 280.0]) {
+      final a = AudioBaseAnalyzer().analyze(rendered, tempo: tempo);
       expect(a.bpm, tempo);
       expect(a.tempoConfidence, 1);
-      // Wherever bar 1 lands, it is on a bar line of the music.
       final err = (a.firstDownbeat / bar - (a.firstDownbeat / bar).round()) * bar;
       expect(err.abs(), lessThan(0.03), reason: 'at $tempo BPM, bar 1 at ${a.firstDownbeat}');
       expect(a.barSeconds, closeTo(240 / tempo, 1e-9));

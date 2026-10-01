@@ -1,64 +1,55 @@
 import 'model.dart';
+import 'transcription.dart';
 
-enum BaseKind { builtIn, flp, midi, audioOnly }
+/// Where a base came from.
+enum BaseKind {
+  /// Downloaded from the base catalog.
+  library,
 
-/// A Sparta base: instrumental audio + the chart of sample-lane notes.
+  /// An FL Studio / FL Studio Mobile / MIDI project (optionally with audio).
+  project,
+
+  /// An audio file the user brought.
+  audio,
+}
+
+/// A Sparta base: its audio, what it plays (the transcription) and the
+/// remix chart written over it.
 class SpartaBase {
   SpartaBase({
     required this.id,
     required this.name,
-    required this.bpm,
     required this.kind,
-    required this.sections,
-    required this.chart,
-    required this.lengthBeats,
+    required this.transcription,
     this.author = '',
     this.audioPath,
-    this.audioOffset = 0,
-    this.beatsPerBar = 4,
-    this.barRoots = const [],
+    this.chart = const [],
     this.notes = '',
-    this.chartShift,
-    this.composedRoles = const {},
   });
 
   final String id;
   final String name;
   final String author;
-  final double bpm;
   final BaseKind kind;
-  final int beatsPerBar;
+  final BaseTranscription transcription;
 
-  /// Ordered, non-overlapping sections.
-  final List<Section> sections;
+  /// The base's audio (null for a project re-synthesized without it).
+  final String? audioPath;
 
-  /// Sample-lane notes.
+  /// Sample-lane notes of the remix.
   final List<ChartNote> chart;
 
-  final double lengthBeats;
-
-  /// Rendered instrumental (null until built-in audio is synthesized).
-  String? audioPath;
-
-  /// Seconds into [audioPath] where beat 0 lands.
-  double audioOffset;
-
-  /// Harmonic root per bar (semitones from D), when known.
-  final List<int> barRoots;
-
-  /// Free-form import notes (e.g. how lanes were mapped).
+  /// Import notes (warnings, how the base was read).
   final String notes;
 
-  /// Semitones the composed chart's tonal notes were shifted by (the base's
-  /// key relative to D, plus any transpose); null when the chart came from
-  /// the project itself and can't be rewritten.
-  final int? chartShift;
+  double get bpm => transcription.bpm;
+  int get beatsPerBar => transcription.beatsPerBar;
+  List<Section> get sections => transcription.sections;
+  double get lengthBeats => transcription.lengthBeats;
 
-  /// Lanes written by the composer (the rest follow the base, e.g. drums
-  /// locked to a project's own kick and snare).
-  final Set<SampleRole> composedRoles;
-
-  bool get canRewriteChart => chartShift != null && composedRoles.isNotEmpty;
+  /// Seconds into the audio where beat 0 lands.
+  double get audioOffset => transcription.audioOffset;
+  int get rootKey => transcription.rootKey;
 
   double get secondsPerBeat => 60 / bpm;
   double seconds(double beat) => beat * 60 / bpm;
@@ -67,35 +58,22 @@ class SpartaBase {
 
   List<ChartNote> lane(SampleRole role) => chart.where((n) => n.role == role).toList();
 
-  Section sectionAt(double beat) => sections.firstWhere(
-    (s) => s.contains(beat),
-    orElse: () => sections.isEmpty ? Section(SectionKind.other, 0, lengthBeats) : sections.last,
-  );
-
-  int rootAtBar(int bar) => barRoots.isEmpty ? 0 : barRoots[bar.clamp(0, barRoots.length - 1)];
+  Section sectionAt(double beat) => transcription.sectionAt(beat);
 
   SpartaBase copyWith({
     List<ChartNote>? chart,
-    List<Section>? sections,
+    BaseTranscription? transcription,
     String? audioPath,
-    double? audioOffset,
     String? name,
-    List<int>? barRoots,
+    String? notes,
   }) => SpartaBase(
     id: id,
     name: name ?? this.name,
     author: author,
-    bpm: bpm,
     kind: kind,
-    sections: sections ?? this.sections,
-    chart: chart ?? this.chart,
-    lengthBeats: lengthBeats,
+    transcription: transcription ?? this.transcription,
     audioPath: audioPath ?? this.audioPath,
-    audioOffset: audioOffset ?? this.audioOffset,
-    beatsPerBar: beatsPerBar,
-    barRoots: barRoots ?? this.barRoots,
-    notes: notes,
-    chartShift: chartShift,
-    composedRoles: composedRoles,
+    chart: chart ?? this.chart,
+    notes: notes ?? this.notes,
   );
 }

@@ -33,36 +33,45 @@ class SourceAnalysis {
   }
 }
 
-/// Ranked candidates per role.
+/// What was found in the sources: spoken lines (for the quote and the
+/// chorus words) and ranked pitch / percussion candidates.
 class SamplePicks {
-  SamplePicks(this.byRole);
+  SamplePicks(this.byRole, {this.lines = const []});
 
   final Map<SampleRole, List<SampleCandidate>> byRole;
+
+  /// Spoken lines, best first.
+  final List<SpokenLine> lines;
 
   List<SampleCandidate> of(SampleRole r) => byRole[r] ?? const [];
   SampleCandidate? best(SampleRole r) => of(r).isEmpty ? null : of(r).first;
 
-  /// One pick per role, preferring material no other role already uses
-  /// (as long as the alternative scores at least [tolerance] × the best).
-  Map<SampleRole, SampleCandidate> assignDistinct({double tolerance = 0.7}) {
-    const order = [
-      SampleRole.quote,
-      SampleRole.pitch,
-      SampleRole.chop,
-      SampleRole.snare,
-      SampleRole.kick,
-      SampleRole.hat,
-    ];
+  /// Pitch candidates with the line's own voiced syllables first (the
+  /// pitch sample is classically a vowel of the line).
+  List<SampleCandidate> pitchFor(SpokenLine? line) {
+    final list = [...of(SampleRole.pitch)];
+    if (line == null) return list;
+    double rank(SampleCandidate c) {
+      final inLine =
+          c.sourceIndex == line.sourceIndex && c.start >= line.start - 0.05 && c.end <= line.end + 0.05;
+      return c.score + (inLine ? 0.12 : 0);
+    }
+
+    list.sort((a, b) => rank(b).compareTo(rank(a)));
+    return list;
+  }
+
+  /// One pick per percussion / pitch role, preferring material no other
+  /// role already uses (as long as the alternative scores at least
+  /// [tolerance] × the best).
+  Map<SampleRole, SampleCandidate> assignDistinct({SpokenLine? line, double tolerance = 0.7}) {
+    const order = [SampleRole.pitch, SampleRole.snare, SampleRole.kick, SampleRole.hat];
     final chosen = <SampleRole, SampleCandidate>{};
-    bool clashes(SampleCandidate c) => chosen.entries.any(
-      (e) =>
-          e.key != SampleRole.quote &&
-          e.value.sourceIndex == c.sourceIndex &&
-          c.start < e.value.end - 0.01 &&
-          e.value.start < c.end - 0.01,
+    bool clashes(SampleCandidate c) => chosen.values.any(
+      (o) => o.sourceIndex == c.sourceIndex && c.start < o.end - 0.01 && o.start < c.end - 0.01,
     );
     for (final role in order) {
-      final list = of(role);
+      final list = role == SampleRole.pitch ? pitchFor(line) : of(role);
       if (list.isEmpty) continue;
       final floor = list.first.score * tolerance;
       chosen[role] = list.firstWhere((c) => c.score >= floor && !clashes(c), orElse: () => list.first);
@@ -74,30 +83,34 @@ class SamplePicks {
 /// Finds usable samples in speech / game / movie audio.
 ///
 /// Every candidate gets a 0..1 score from interpretable terms so the review
-/// UI can explain the choice.
+/// UI can explain the choice. Nothing is synthesized: every sample is a
+/// piece of a source.
 class SampleFinder {
   SampleFinder(this.sources);
 
   final List<SourceAnalysis> sources;
 
-  SamplePicks find({int keep = 8}) {
-    final all = <SampleRole, List<SampleCandidate>>{for (final r in SampleRole.values) r: []};
+  SamplePicks find({int keep = 8, int keepLines = 12}) {
+    final all = <SampleRole, List<SampleCandidate>>{
+      for (final r in const [SampleRole.pitch, SampleRole.kick, SampleRole.snare, SampleRole.hat]) r: [],
+    };
+    final lines = <SpokenLine>[];
     for (final s in sources) {
       final onsets = detectOnsets(s.features, sensitivity: 1.2);
       all[SampleRole.pitch]!.addAll(_pitchCandidates(s, onsets));
-      all[SampleRole.chop]!.addAll(_chopCandidates(s, onsets));
       final hits = _hits(s, onsets);
       all[SampleRole.kick]!.addAll(hits.map((h) => h.scored(SampleRole.kick)));
       all[SampleRole.snare]!.addAll(hits.map((h) => h.scored(SampleRole.snare)));
       all[SampleRole.hat]!.addAll(hits.map((h) => h.scored(SampleRole.hat)));
-      all[SampleRole.quote]!.addAll(_quoteCandidates(s));
+      lines.addAll(findLines(s));
     }
     final out = <SampleRole, List<SampleCandidate>>{};
     for (final e in all.entries) {
       final list = e.value..sort((a, b) => b.score.compareTo(a.score));
       out[e.key] = _dedupe(list).take(keep).toList();
     }
-    return SamplePicks(out);
+    lines.sort((a, b) => b.score.compareTo(a.score));
+    return SamplePicks(out, lines: lines.take(keepLines).toList());
   }
 
   /// Drops candidates overlapping a better one from the same source.
@@ -174,47 +187,6 @@ class SampleFinder {
   }
 
   // ---------------------------------------------------------------------------
-  // Chop: short syllables with a hard attack.
-  // ---------------------------------------------------------------------------
-
-  List<SampleCandidate> _chopCandidates(SourceAnalysis s, List<int> onsets) {
-    final f = s.features;
-    final peak = f.rmsDb.fold<double>(-180, math.max);
-    final maxFlux = f.flux.fold<double>(0, math.max);
-    final out = <SampleCandidate>[];
-    for (var k = 0; k < onsets.length; k++) {
-      final a = onsets[k];
-      final limit = k + 1 < onsets.length ? onsets[k + 1] : f.length;
-      var b = a + 1;
-      while (b < limit && b - a < 32 && f.rmsDb[b] > peak - 32) {
-        b++;
-      }
-      final len = b - a;
-      if (len < 8) continue;
-      final voicedShare = [for (var i = a; i < b; i++) f.voiced(i) ? 1 : 0].fold<int>(0, (x, y) => x + y) / len;
-      final attack = maxFlux > 0 ? (f.flux[a] / maxFlux).clamp(0.0, 1.0) : 0.0;
-      final loud = ((_max(f.rmsDb, a, b) - (peak - 30)) / 30).clamp(0.0, 1.0);
-      final dur = len * f.frameSeconds;
-      final durFit = _bell(dur, 0.1, 0.3);
-      final voiceFit = _bell(voicedShare, 0.35, 0.9);
-      final score = 0.3 * attack + 0.25 * loud + 0.2 * durFit + 0.25 * voiceFit;
-      final hz = [for (var i = a; i < b; i++) f.f0[i]];
-      out.add(
-        SampleCandidate(
-          role: SampleRole.chop,
-          sourceIndex: s.index,
-          start: math.max(0, f.timeOf(a) - 0.005),
-          end: f.timeOf(b),
-          score: score,
-          f0: median(hz.where((h) => h > 0)),
-          details: {'attack': attack, 'loudness': loud, 'length': durFit, 'voiced': voiceFit},
-        ),
-      );
-    }
-    return out;
-  }
-
-  // ---------------------------------------------------------------------------
   // Percussion.
   // ---------------------------------------------------------------------------
 
@@ -260,13 +232,19 @@ class SampleFinder {
   }
 
   // ---------------------------------------------------------------------------
-  // Quote: a dense spoken phrase bounded by pauses, ideally 1–2 bars long.
+  // Lines: spoken phrases bounded by pauses, split into words and syllables.
   // ---------------------------------------------------------------------------
 
-  List<SampleCandidate> _quoteCandidates(SourceAnalysis s) {
+  /// Spoken lines in [s]: phrases between pauses, 0.5–6 s long, split into
+  /// words at silences and deep dips, and words into syllables at the
+  /// smaller dips between vowels.
+  static List<SpokenLine> findLines(SourceAnalysis s) {
     final f = s.features;
+    if (f.length == 0) return const [];
     final peak = f.rmsDb.fold<double>(-180, math.max);
-    final active = [for (var i = 0; i < f.length; i++) f.rmsDb[i] > peak - 35];
+    final floor = peak - 35;
+    final env = _smooth(f.rmsDb, 2);
+    final active = [for (var i = 0; i < f.length; i++) env[i] > floor];
     // Phrases: active runs, merging gaps shorter than 250 ms.
     final phrases = <(int, int)>[];
     var i = 0;
@@ -289,24 +267,115 @@ class SampleFinder {
       }
       phrases.add((a, b));
     }
-    final out = <SampleCandidate>[];
+    final out = <SpokenLine>[];
     for (final (a, b) in phrases) {
       final dur = (b - a) * f.frameSeconds;
-      if (dur < 0.5) continue;
+      if (dur < 0.45 || dur > 7) continue;
+      final words = _words(f, env, a, b, floor);
+      if (words.isEmpty) continue;
       final voiced = [for (var k = a; k < b; k++) f.voiced(k) ? 1.0 : 0.0].fold<double>(0, (x, y) => x + y) / (b - a);
-      final durFit = _bell(dur, 1.0, 3.6);
+      final durFit = _bell(dur, 0.9, 3.6);
+      final count = _bell(words.length.toDouble(), 2, 6);
       final loud = ((_mean(f.rmsDb, a, b) - (peak - 30)) / 30).clamp(0.0, 1.0);
       final speech = _bell(voiced, 0.35, 0.85);
+      // Clean pauses around it make a clean quote.
+      final before = a > 0 ? _mean(env, math.max(0, a - 15), a) : floor - 10;
+      final after = b < f.length ? _mean(env, b, math.min(f.length, b + 15)) : floor - 10;
+      final clean = (((peak - 12) - math.max(before, after)) / 25).clamp(0.0, 1.0);
+      final score = 0.25 * durFit + 0.2 * count + 0.2 * speech + 0.2 * loud + 0.15 * clean;
       out.add(
-        SampleCandidate(
-          role: SampleRole.quote,
+        SpokenLine(
           sourceIndex: s.index,
-          start: math.max(0, f.timeOf(a) - 0.03),
-          end: math.min(s.duration, f.timeOf(b) + 0.05),
-          score: 0.4 * durFit + 0.3 * speech + 0.3 * loud,
-          details: {'length': durFit, 'speech': speech, 'loudness': loud},
+          start: math.max(0, f.timeOf(a) - 0.02),
+          end: math.min(s.duration, f.timeOf(b) + 0.04),
+          words: words,
+          score: score,
+          details: {'length': durFit, 'words': count, 'speech': speech, 'loudness': loud, 'clean': clean},
         ),
       );
+    }
+    return out;
+  }
+
+  /// Word / syllable splitting thresholds (frames of 10 ms, dB). Loudness
+  /// alone can't always tell a word gap from a stop inside a word (about
+  /// half the cuts in connected speech), so the Line step lets the user
+  /// split and merge words.
+  static int wordGapFrames = 2;
+  static double wordDipDb = 8, syllableDipDb = 4;
+
+  /// Words of the phrase [a, b): split at silences (30 ms+) and dips at least
+  /// 10 dB below both neighbouring peaks; syllables at 4 dB+ dips between
+  /// voiced peaks.
+  static List<LineWord> _words(FrameFeatures f, Float64List env, int a, int b, double floor) {
+    // Valleys: local minima with their depth below the smaller neighbour peak.
+    final cutsWord = <int>{};
+    final cutsSyllable = <int>{};
+    var k = a;
+    while (k < b) {
+      if (env[k] <= floor) {
+        final s0 = k;
+        while (k < b && env[k] <= floor) {
+          k++;
+        }
+        if (k - s0 >= wordGapFrames && s0 > a && k < b) cutsWord.add((s0 + k) ~/ 2);
+        continue;
+      }
+      k++;
+    }
+    for (var j = a + 2; j < b - 2; j++) {
+      if (env[j] > env[j - 1] || env[j] > env[j + 1] || env[j] <= floor) continue;
+      var left = env[j], right = env[j];
+      for (var q = j - 1; q >= math.max(a, j - 25); q--) {
+        left = math.max(left, env[q]);
+      }
+      for (var q = j + 1; q < math.min(b, j + 26); q++) {
+        right = math.max(right, env[q]);
+      }
+      final depth = math.min(left, right) - env[j];
+      if (depth >= wordDipDb) {
+        cutsWord.add(j);
+      } else if (depth >= syllableDipDb) {
+        cutsSyllable.add(j);
+      }
+    }
+    // Words from the word cuts (dropping crumbs shorter than 70 ms).
+    final edges = [a, ...(cutsWord.toList()..sort()), b];
+    final spans = <(int, int)>[];
+    for (var q = 0; q + 1 < edges.length; q++) {
+      var s0 = edges[q], s1 = edges[q + 1];
+      // Trim silence at the word's edges.
+      while (s0 < s1 && env[s0] <= floor) {
+        s0++;
+      }
+      while (s1 > s0 && env[s1 - 1] <= floor) {
+        s1--;
+      }
+      if (s1 - s0 < 7) continue;
+      spans.add((s0, s1));
+    }
+    return [
+      for (final (s0, s1) in spans)
+        LineWord(
+          math.max(0, f.timeOf(s0) - 0.012),
+          f.timeOf(s1) + 0.02,
+          cuts: [
+            for (final c in cutsSyllable.toList()..sort())
+              if (c - s0 >= 6 && s1 - c >= 6) f.timeOf(c),
+          ],
+        ),
+    ];
+  }
+
+  static Float64List _smooth(Float64List x, int radius) {
+    final out = Float64List(x.length);
+    for (var i = 0; i < x.length; i++) {
+      var s = 0.0, n = 0;
+      for (var j = math.max(0, i - radius); j <= math.min(x.length - 1, i + radius); j++) {
+        s += x[j];
+        n++;
+      }
+      out[i] = s / n;
     }
     return out;
   }
@@ -357,14 +426,6 @@ class SampleFinder {
       s += x[i];
     }
     return s / (b - a);
-  }
-
-  static double _max(Float64List x, int a, int b) {
-    var m = -double.infinity;
-    for (var i = a; i < b; i++) {
-      m = math.max(m, x[i]);
-    }
-    return m;
   }
 
   /// 1 inside [lo, hi], falling off smoothly outside.

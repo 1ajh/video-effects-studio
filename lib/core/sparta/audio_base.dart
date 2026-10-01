@@ -4,10 +4,7 @@ import 'dart:typed_data';
 import '../audio/audio_buffer.dart';
 import '../audio/dsp.dart';
 import '../audio/fft.dart';
-import 'base.dart';
-import 'chart_import.dart' show autoSections;
-import 'composer.dart';
-import 'model.dart';
+import 'chart_import.dart' show phrygian;
 
 /// What was learned from a base supplied only as audio.
 class AudioBaseAnalysis {
@@ -19,7 +16,15 @@ class AudioBaseAnalysis {
     required this.tonicPc,
     required this.barEnergy,
     required this.tempoConfidence,
+    this.signal,
+    this.onsets,
   });
+
+  /// The analysed mono signal at [AudioBaseAnalyzer.sampleRate].
+  final Float32List? signal;
+
+  /// Whitened onset strength per STFT frame, per band.
+  final OnsetBands? onsets;
 
   final double bpm;
 
@@ -38,6 +43,29 @@ class AudioBaseAnalysis {
   final double tempoConfidence;
 
   double get barSeconds => 4 * 60 / bpm;
+}
+
+/// Whitened onset envelopes (frames of [AudioBaseAnalyzer.hop] samples).
+class OnsetBands {
+  OnsetBands({required this.full, required this.sub, required this.low, required this.mid, required this.high});
+  final Float64List full, sub, low, mid, high;
+
+  int get frames => full.length;
+
+  /// Frame index for an attack at [seconds].
+  static double frameOf(double seconds) =>
+      (seconds - AudioBaseAnalyzer.onsetLatency) * AudioBaseAnalyzer.sampleRate / AudioBaseAnalyzer.hop -
+      AudioBaseAnalyzer.window / 2 / AudioBaseAnalyzer.hop;
+
+  /// Strongest onset of [band] within ±[radius] frames of [seconds].
+  static double peak(Float64List band, double seconds, {int radius = 2}) {
+    final f = frameOf(seconds).round();
+    var m = 0.0;
+    for (var i = f - radius; i <= f + radius; i++) {
+      if (i >= 0 && i < band.length && band[i] > m) m = band[i];
+    }
+    return m;
+  }
 }
 
 class _Flux {
@@ -153,7 +181,22 @@ class AudioBaseAnalyzer {
       }
     }
     final period = fps * 60 / bpm;
-    final bestPhase = _bestPhase(onBeat, period, frames).$1;
+    var bestPhase = _bestPhase(onBeat, period, frames).$1;
+    // At half time the comb can lock onto the snare beats (kick + snare is
+    // louder than a lone kick): the beats are where the kick's sub sits.
+    {
+      final subBand = _whiten(flux.sub);
+      double subSum(double phase) {
+        var s = 0.0;
+        for (var t = phase; t < frames - 1; t += period) {
+          s += _at(subBand, t);
+        }
+        return s;
+      }
+
+      final alt = (bestPhase + period / 2) % period;
+      if (subSum(alt) > subSum(bestPhase) * 1.15) bestPhase = alt;
+    }
 
     // Downbeat. In real Sparta bases the kick hits every beat but most on
     // beat 1, the snare 2 and 4, and the bass/chords change on the bar
@@ -260,6 +303,8 @@ class AudioBaseAnalyzer {
       tonicPc: tonic,
       barEnergy: energy,
       tempoConfidence: confidence,
+      signal: x,
+      onsets: OnsetBands(full: onset, sub: sub, low: kick, mid: mid, high: high),
     );
   }
 
@@ -398,49 +443,6 @@ class AudioBaseAnalyzer {
       }
     }
     return null;
-  }
-
-  /// Turns an analysis into a base whose sample chart is composed over the
-  /// detected grid and harmony.
-  SpartaBase toBase(
-    AudioBaseAnalysis a, {
-    required String name,
-    required String audioPath,
-    BaseStyle style = BaseStyle.classic,
-    int seed = 1,
-    int transpose = 0,
-  }) {
-    final length = a.bars * 4.0;
-    // Label 4/8-bar blocks by loudness (quiet start = intro, etc.).
-    final pseudo = <ChartNote>[
-      for (var b = 0; b < a.bars; b++)
-        for (var k = 0; k < (a.barEnergy[b] / (a.barEnergy.reduce(math.max) + 1e-9) * 8).round(); k++)
-          ChartNote(role: SampleRole.pitch, beat: b * 4.0 + k * 0.5, length: 0.5),
-    ];
-    final sections = autoSections(pseudo, length, 4);
-    final plan = [for (final s in sections) SectionPlan(s.kind, math.max(1, (s.lengthBeats / 4).round()))];
-    final composed = Composer(style: style, seed: seed).compose(plan, barRoots: a.barRoots).base;
-    final shift = ((a.tonicPc - 2) % 12 + 18) % 12 - 6 + transpose;
-    return SpartaBase(
-      id: 'audio_${audioPath.hashCode.toUnsigned(32).toRadixString(16)}',
-      name: name,
-      bpm: a.bpm,
-      kind: BaseKind.audioOnly,
-      sections: sections,
-      chart: [
-        for (final n in composed.chart)
-          if (n.beat < length) n.role.isTonal ? n.copyWith(semitone: n.semitone + shift) : n,
-      ],
-      lengthBeats: length,
-      audioPath: audioPath,
-      audioOffset: a.firstDownbeat,
-      barRoots: a.barRoots,
-      chartShift: shift,
-      composedRoles: const {SampleRole.pitch, SampleRole.chop, SampleRole.kick, SampleRole.snare, SampleRole.hat},
-      notes:
-          'Tempo ${a.bpm.toStringAsFixed(1)} BPM (confidence ${(a.tempoConfidence * 100).round()}%), '
-          'first bar at ${a.firstDownbeat.toStringAsFixed(2)} s. Sample chart composed automatically.',
-    );
   }
 
   static (double, double) _tempo(Float64List onset, double fps) {

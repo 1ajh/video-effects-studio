@@ -9,103 +9,96 @@ import '../ffmpeg/ffmpeg_runner.dart';
 import '../models/output_settings.dart';
 import 'arranger.dart';
 import 'audio_base.dart';
+import 'audio_transcriber.dart';
 import 'base.dart';
+import 'base_library.dart';
 import 'base_renderer.dart';
 import 'chart_import.dart';
-import 'composer.dart';
 import 'flm.dart';
 import 'flp.dart';
 import 'midi.dart';
 import 'model.dart';
+import 'project_transcriber.dart';
 import 'sample_finder.dart';
 import 'sample_processing.dart';
-import 'section_edits.dart';
+import 'transcription.dart';
 import 'visual_renderer.dart';
 
 /// Where the base comes from.
 sealed class BaseSource {
   const BaseSource();
+
+  /// Stable id (saved fixes and settings are kept under it).
+  String get key;
+  String get name;
 }
 
-/// One of the procedurally composed built-in bases.
-class BuiltInBaseSource extends BaseSource {
-  const BuiltInBaseSource({
-    this.style = BaseStyle.classic,
-    this.length = RemixLength.standard,
-    this.sections,
-    this.seed = 1,
-    this.sectionSeeds = const {},
-    this.rewrites = const [],
-  });
+/// A real base from the catalog, downloaded on first use.
+class LibraryBaseSource extends BaseSource {
+  const LibraryBaseSource(this.base);
+  final CatalogBase base;
 
-  final BaseStyle style;
-  final RemixLength length;
-
-  /// Enabled sections (null = all).
-  final Set<SectionKind>? sections;
-  final int seed;
-
-  /// Per-section re-roll counters.
-  final Map<SectionKind, int> sectionSeeds;
-
-  /// Sections the user asked to have rewritten (music and sample notes).
-  final List<ChartRewrite> rewrites;
+  @override
+  String get key => 'catalog:${base.id}';
+  @override
+  String get name => base.name;
 }
 
-/// An FL Studio (.flp), FL Studio Mobile (.flm) or MIDI project, optionally
-/// with its rendered audio. Without audio the project is re-synthesized.
+/// An FL Studio (.flp), FL Studio Mobile (.flm) or MIDI project, with its
+/// rendered audio when there is one (else the project is re-synthesized).
 class ProjectBaseSource extends BaseSource {
-  const ProjectBaseSource({
-    required this.projectPath,
-    this.audioPath,
-    this.mapping,
-    this.transpose = 0,
-    this.audioOffset,
-    this.style = BaseStyle.classic,
-    this.seed = 1,
-  });
+  const ProjectBaseSource({required this.projectPath, this.audioPath, this.uses = const {}, this.audioOffset});
 
   final String projectPath;
   final String? audioPath;
 
-  /// Track id → sample lane (null: guess from names).
-  final Map<String, SampleRole?>? mapping;
-  final int transpose;
+  /// Which tracks are the hit / lead (by track id).
+  final Map<String, TrackUse> uses;
 
   /// Seconds into the audio where beat 0 lands (null: detect).
   final double? audioOffset;
-  final BaseStyle style;
-  final int seed;
+
+  @override
+  String get key => 'file:$projectPath';
+  @override
+  String get name => p.basenameWithoutExtension(projectPath);
 }
 
-/// Just an audio file: tempo, bars, harmony and sections are detected.
+/// A base you only have as audio: everything is transcribed from it.
 class AudioBaseSource extends BaseSource {
-  const AudioBaseSource({
-    required this.audioPath,
-    this.bpm,
-    this.transpose = 0,
-    this.style = BaseStyle.classic,
-    this.seed = 1,
-  });
+  const AudioBaseSource({required this.audioPath, this.bpm});
   final String audioPath;
 
   /// Tempo to use instead of detecting it.
   final double? bpm;
-  final int transpose;
-  final BaseStyle style;
-  final int seed;
+
+  @override
+  String get key => 'file:$audioPath';
+  @override
+  String get name => p.basenameWithoutExtension(audioPath);
 }
 
-/// A base ready to mix: chart + stereo 48 kHz audio.
+/// A base ready to chart and mix: what it plays (the transcription) and its
+/// stereo 48 kHz audio.
 class PreparedBase {
-  PreparedBase({required this.base, required this.audio, this.score, this.chart, this.analysis});
+  PreparedBase({required this.base, required this.audio, required this.auto, this.project, this.analysis});
+
+  /// The base (its chart is written by the controller).
   final SpartaBase base;
   final AudioBuffer audio;
 
-  /// Instrument parts (built-in or re-synthesized), exported as MIDI.
-  final Composition? score;
-  final ChartSource? chart;
+  /// The automatic transcription, before any fixes.
+  final BaseTranscription auto;
+  final ChartSource? project;
   final AudioBaseAnalysis? analysis;
+
+  BaseTranscription get transcription => base.transcription;
+
+  PreparedBase withTranscription(BaseTranscription t) =>
+      PreparedBase(base: base.copyWith(transcription: t), audio: audio, auto: auto, project: project, analysis: analysis);
+
+  PreparedBase withChart(List<ChartNote> chart) =>
+      PreparedBase(base: base.copyWith(chart: chart), audio: audio, auto: auto, project: project, analysis: analysis);
 }
 
 /// Files written for a finished remix.
@@ -118,13 +111,22 @@ class RemixOutputs {
   final List<String> midi;
 }
 
-/// Orchestrates the Sparta pipeline: analysis, samples, bases, mixing and
+/// Orchestrates the Sparta pipeline: bases, sources and samples, mixing and
 /// export. Heavy DSP runs in background isolates.
 class SpartaEngine {
-  SpartaEngine({required this.ffmpegPath, required this.cacheDir});
+  SpartaEngine({
+    required this.ffmpegPath,
+    required this.cacheDir,
+    BaseLibrary? library,
+    this.bundledCatalog = '{"version":1,"bases":[]}',
+  }) : library = library ?? BaseLibrary(cacheDir: p.join(cacheDir, 'sparta'));
 
   final String ffmpegPath;
   final String cacheDir;
+  final BaseLibrary library;
+
+  /// The catalog shipped with the app (bases/catalog.json).
+  final String bundledCatalog;
 
   static const projectExtensions = {'.flp', '.flm', '.mid', '.midi'};
 
@@ -139,15 +141,17 @@ class SpartaEngine {
   }
 
   Future<SamplePicks> findSamples(List<SourceAnalysis> sources) =>
-      Isolate.run(() => SampleFinder(sources).find(keep: 8));
+      Isolate.run(() => SampleFinder(sources).find(keep: 10));
 
-  /// Cuts [c] from its source at full quality and makes it Sparta-ready.
+  /// Cuts [c] from its source at full quality and makes it Sparta-ready
+  /// (pitch samples are tuned to [rootPc]).
   Future<ProcessedSample> prepareSample(
     SampleCandidate c,
     String path, {
     EnhanceOptions options = const EnhanceOptions(),
+    int rootPc = 2,
   }) async {
-    final pad = 0.01;
+    const pad = 0.01;
     final raw = await AudioBuffer.decode(
       ffmpegPath,
       path,
@@ -156,8 +160,17 @@ class SpartaEngine {
       duration: c.duration + pad,
     );
     final trimmed = raw.slice(math.min(pad, c.start), raw.duration);
-    return Isolate.run(() => SampleEnhancer(options: options).process(c, trimmed, path));
+    return Isolate.run(() => SampleEnhancer(options: options, rootPc: rootPc).process(c, trimmed, path));
   }
+
+  /// The source's audio between [start] and [end] seconds, for listening.
+  Future<AudioBuffer> sourceClip(String path, double start, double end) => AudioBuffer.decode(
+    ffmpegPath,
+    path,
+    sampleRate: ProcessedSample.sampleRate,
+    start: math.max(0, start),
+    duration: math.max(0.02, end - start),
+  );
 
   // --- bases -------------------------------------------------------------------
 
@@ -171,85 +184,149 @@ class SpartaEngine {
     };
   }
 
-  Future<PreparedBase> prepareBase(BaseSource source) async {
+  /// Loads a base and works out what it plays. A checked transcription from
+  /// the catalog, or the project's own notes, is exact; audio alone is a
+  /// draft the user can fix (pass the fixed one as [fixed]).
+  Future<PreparedBase> prepareBase(
+    BaseSource source, {
+    BaseTranscription? fixed,
+    void Function(String status, double? fraction)? onStatus,
+  }) async {
     switch (source) {
-      case final BuiltInBaseSource s:
-        final plan = defaultPlan(length: s.length, enabled: s.sections);
-        if (plan.isEmpty) throw ArgumentError('Enable at least one section.');
-        final key = [
-          s.style.name, s.length.name, s.seed, //
-          plan.map((x) => '${x.kind.name}${x.bars}').join('-'),
-          s.sectionSeeds.entries.map((e) => '${e.key.name}${e.value}').join('-'),
-          rewritesKey(s.rewrites),
-        ].join('_');
-        final comp = rewriteComposition(
-          Composer(style: s.style, seed: s.seed).compose(plan, sectionSeeds: s.sectionSeeds),
-          s.rewrites,
-        );
-        final audio = await _cachedRender(key, comp);
-        return PreparedBase(
-          base: comp.base.copyWith(audioPath: _cachePath('base_$key.wav')),
-          audio: audio,
-          score: comp,
-        );
+      case LibraryBaseSource(:final base):
+        onStatus?.call('Downloading ${base.name}…', 0);
+        final audioPath = await library.audio(base, onProgress: (f) => onStatus?.call('Downloading ${base.name}…', f));
+        final sha = await BaseLibrary.sha1Of(audioPath);
+        onStatus?.call('Loading the base…', null);
+        final audio = await AudioBuffer.decode(ffmpegPath, audioPath, channels: 2);
+        BaseTranscription? auto = await library.checkedTranscription(base);
+        ChartSource? project;
+        AudioBaseAnalysis? analysis;
+        if (auto == null && base.flpUrl != null) {
+          onStatus?.call('Reading the base\'s FL Studio project…', null);
+          final flp = await library.project(base);
+          if (flp != null) {
+            final read = await Isolate.run(() => readProject(flp));
+            project = read;
+            auto = await _fromProject(read, audio, const {}, null);
+          }
+        }
+        if (auto == null) {
+          onStatus?.call('Transcribing the base (tempo, drums, hits, sections)…', null);
+          (auto, analysis) = await _fromAudio(audioPath, sha, name: base.name);
+        }
+        auto = auto.copyWith(baseName: base.name, maker: base.maker, catalogId: base.id, audioSha1: sha);
+        return _prepared(source, auto, fixed, audio, audioPath, project: project, analysis: analysis);
       case final ProjectBaseSource s:
-        final chart = await Isolate.run(() => readProject(s.projectPath));
-        final mapping = s.mapping ?? chart.guessMapping();
-        var base = chart.toBase(mapping, transpose: s.transpose, audioPath: s.audioPath, seed: s.seed, style: s.style);
+        onStatus?.call('Reading the project…', null);
+        final project = await Isolate.run(() => readProject(s.projectPath));
         if (s.audioPath != null) {
           final audio = await AudioBuffer.decode(ffmpegPath, s.audioPath!, channels: 2);
-          var offset = s.audioOffset;
-          if (offset == null) {
-            // Line up the base's own parts (its drums, else everything it
-            // plays) with the audio; the sample chart isn't in the audio.
-            final own = [
-              for (final t in chart.tracks)
-                if (mapping[t.id] == null) t,
-            ];
-            final drums = own.where((t) => t.isDrums).toList();
-            final hits = [
-              for (final t in drums.isNotEmpty ? drums : own)
-                for (final n in t.notes) base.seconds(n.beat),
-            ]..sort();
-            final firstNote = chart.tracks
-                .expand((t) => t.notes)
-                .fold<double?>(null, (m, n) => m == null || n.beat < m ? n.beat : m);
-            final firstSeconds = firstNote == null ? null : base.seconds(firstNote);
-            offset = await Isolate.run(
-              () => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds),
-            );
-          }
-          base = base.copyWith(audioOffset: offset);
-          return PreparedBase(base: base, audio: audio, chart: chart);
+          onStatus?.call('Lining the project up with its audio…', null);
+          final found = await _fromProject(project, audio, s.uses, s.audioOffset);
+          final sha = await BaseLibrary.sha1Of(s.audioPath!);
+          final known = (await library.catalog(bundledCatalog, refresh: false)).bySha1(sha);
+          final auto = found.copyWith(
+            baseName: known?.name ?? project.name,
+            maker: known?.maker,
+            catalogId: known?.id,
+            audioSha1: sha,
+          );
+          return _prepared(source, auto, fixed, audio, s.audioPath, project: project);
         }
-        final comp = resynthesize(chart, base, mapping, style: s.style, seed: s.seed);
-        final key =
-            'proj_${s.projectPath.hashCode.toUnsigned(32).toRadixString(16)}_${s.style.name}_${s.seed}_'
-            '${File(s.projectPath).lastModifiedSync().millisecondsSinceEpoch}_'
-            '${mapping.entries.where((e) => e.value != null).map((e) => '${e.key}${e.value!.index}').join()}';
-        final audio = await _cachedRender(key, comp);
-        return PreparedBase(base: base, audio: audio, score: comp, chart: chart);
+        onStatus?.call('Re-synthesizing the project…', null);
+        final auto = ProjectTranscriber().transcribe(project, uses: s.uses).copyWith(baseName: project.name);
+        final audio = await _cachedRender(s, project);
+        return _prepared(source, auto, fixed, audio, null, project: project);
       case final AudioBaseSource s:
-        final analysisAudio = await AudioBuffer.decode(
-          ffmpegPath,
-          s.audioPath,
-          sampleRate: AudioBaseAnalyzer.sampleRate,
-        );
-        final analysis = await Isolate.run(() => AudioBaseAnalyzer().analyze(analysisAudio, tempo: s.bpm));
-        final base = AudioBaseAnalyzer().toBase(
-          analysis,
-          name: p.basenameWithoutExtension(s.audioPath),
-          audioPath: s.audioPath,
-          style: s.style,
-          seed: s.seed,
-          transpose: s.transpose,
+        final sha = await BaseLibrary.sha1Of(s.audioPath);
+        final catalog = await library.catalog(bundledCatalog, refresh: false);
+        final known = catalog.bySha1(sha);
+        BaseTranscription? auto = known == null ? null : await library.checkedTranscription(known);
+        AudioBaseAnalysis? analysis;
+        if (auto == null) {
+          onStatus?.call('Transcribing the base (tempo, drums, hits, sections)…', null);
+          (auto, analysis) = await _fromAudio(s.audioPath, sha, name: known?.name ?? s.name, bpm: s.bpm);
+        }
+        auto = auto.copyWith(
+          baseName: known?.name ?? s.name,
+          maker: known?.maker,
+          catalogId: known?.id,
+          audioSha1: sha,
         );
         final audio = await AudioBuffer.decode(ffmpegPath, s.audioPath, channels: 2);
-        return PreparedBase(base: base, audio: audio, analysis: analysis);
+        return _prepared(source, auto, fixed, audio, s.audioPath, analysis: analysis);
     }
   }
 
-  Future<AudioBuffer> _cachedRender(String key, Composition comp) async {
+  PreparedBase _prepared(
+    BaseSource source,
+    BaseTranscription auto,
+    BaseTranscription? fixed,
+    AudioBuffer audio,
+    String? audioPath, {
+    ChartSource? project,
+    AudioBaseAnalysis? analysis,
+  }) {
+    final t = fixed ?? auto;
+    return PreparedBase(
+      base: SpartaBase(
+        id: source.key,
+        name: t.baseName.isEmpty ? source.name : t.baseName,
+        author: t.maker,
+        kind: switch (source) {
+          LibraryBaseSource() => BaseKind.library,
+          ProjectBaseSource() => BaseKind.project,
+          AudioBaseSource() => BaseKind.audio,
+        },
+        transcription: t,
+        audioPath: audioPath,
+        notes: [...?project?.warnings].join(' '),
+      ),
+      audio: audio,
+      auto: auto,
+      project: project,
+      analysis: analysis,
+    );
+  }
+
+  Future<BaseTranscription> _fromProject(
+    ChartSource project,
+    AudioBuffer audio,
+    Map<String, TrackUse> uses,
+    double? offset,
+  ) async {
+    final t = await Isolate.run(() => ProjectTranscriber().transcribe(project, uses: uses));
+    if (offset != null) return t.copyWith(audioOffset: offset);
+    // Line the base's own drums (else everything it plays) up with the audio.
+    final drums = project.drumHits();
+    final beats = [for (final l in drums.values) ...l];
+    final hits = [
+      for (final b in beats.isNotEmpty ? beats : [for (final tr in project.tracks) ...tr.notes.map((n) => n.beat)])
+        b * 60 / t.bpm,
+    ]..sort();
+    final first = project.tracks.expand((tr) => tr.notes).fold<double?>(null, (m, n) => m == null || n.beat < m ? n.beat : m);
+    final firstSeconds = first == null ? null : first * 60 / t.bpm;
+    final found = await Isolate.run(() => AudioBaseAnalyzer().alignHits(audio, hits, firstNoteSeconds: firstSeconds));
+    return t.copyWith(audioOffset: found);
+  }
+
+  Future<(BaseTranscription, AudioBaseAnalysis)> _fromAudio(
+    String audioPath,
+    String sha, {
+    String name = '',
+    double? bpm,
+  }) async {
+    final analysisAudio = await AudioBuffer.decode(ffmpegPath, audioPath, sampleRate: AudioBaseAnalyzer.sampleRate);
+    return Isolate.run(() {
+      final a = AudioBaseAnalyzer().analyze(analysisAudio, tempo: bpm);
+      return (AudioTranscriber().transcribe(a, name: name), a);
+    });
+  }
+
+  Future<AudioBuffer> _cachedRender(ProjectBaseSource s, ChartSource project) async {
+    final stamp = File(s.projectPath).lastModifiedSync().millisecondsSinceEpoch;
+    final key = 'proj_${s.projectPath.hashCode.toUnsigned(32).toRadixString(16)}_$stamp';
     final file = File(_cachePath('base_$key.wav'));
     if (await file.exists()) {
       try {
@@ -258,7 +335,7 @@ class SpartaEngine {
         // Corrupt cache entry: render again.
       }
     }
-    final audio = await Isolate.run(() => BaseRenderer().render(comp));
+    final audio = await Isolate.run(() => BaseRenderer().render(resynthesize(project)));
     await file.parent.create(recursive: true);
     await audio.writeWav(file.path);
     return audio;
@@ -268,9 +345,24 @@ class SpartaEngine {
 
   // --- mix & export ---------------------------------------------------------------
 
-  Future<RemixMix> mix(PreparedBase base, Map<SampleRole, List<ProcessedSample>> samples, MixSettings settings) {
+  Future<RemixMix> mix(
+    PreparedBase base,
+    Map<SampleRole, List<ProcessedSample>> samples,
+    MixSettings settings, {
+    bool shuffleSamples = false,
+    int seed = 1,
+  }) {
     final b = base.base, audio = base.audio;
-    return Isolate.run(() => Arranger(base: b, samples: samples, baseAudio: audio, settings: settings).mix());
+    return Isolate.run(
+      () => Arranger(
+        base: b,
+        samples: samples,
+        baseAudio: audio,
+        settings: settings,
+        shuffleSamples: shuffleSamples,
+        seed: seed,
+      ).mix(),
+    );
   }
 
   /// Writes the remix (video, or audio for MP3/WAV) into [outDir] named
@@ -284,7 +376,9 @@ class SpartaEngine {
     required String name,
     bool stems = false,
     bool midi = false,
-    VisualPreset preset = VisualPreset.classic,
+    VisualOptions visuals = const VisualOptions(),
+    String title = '',
+    String? fontPath,
     OutputSettings output = const OutputSettings(),
     void Function(double fraction, String status)? onProgress,
     CancelToken? cancel,
@@ -313,12 +407,9 @@ class SpartaEngine {
         final chartPath = p.join(outDir, '$name - sample chart.mid');
         await File(chartPath).writeAsBytes(MidiFile.fromChart(base.base).encode());
         midiPaths.add(chartPath);
-        final score = base.score;
-        if (score != null) {
-          final basePath = p.join(outDir, '$name - base.mid');
-          await File(basePath).writeAsBytes(MidiFile.fromScore(score).encode());
-          midiPaths.add(basePath);
-        }
+        final basePath = p.join(outDir, '$name - base notes.mid');
+        await File(basePath).writeAsBytes(MidiFile.fromTranscription(base.transcription).encode());
+        midiPaths.add(basePath);
       }
 
       final target = await _unique(outDir, name, output.format.extension);
@@ -335,11 +426,11 @@ class SpartaEngine {
             );
           }
         }
-        await VisualRenderer(ffmpegPath: ffmpegPath, workDir: p.join(work.path, 'video')).render(
-          base: base.base,
+        await VisualRenderer(ffmpegPath: ffmpegPath, workDir: p.join(work.path, 'video'), fontPath: fontPath).render(
           events: mix.events,
           sources: sources,
-          preset: preset,
+          options: visuals,
+          title: title,
           masterAudioPath: masterWav,
           duration: mix.duration,
           outputPath: target,

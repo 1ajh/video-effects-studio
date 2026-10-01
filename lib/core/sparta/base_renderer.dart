@@ -4,87 +4,19 @@ import 'dart:typed_data';
 import '../audio/audio_buffer.dart';
 import '../audio/dsp.dart';
 import '../audio/synth.dart';
-import 'composer.dart';
+import 'score.dart';
 
-/// Per-style sound design for the synthesized bases.
+/// Sound design of the re-synthesized base.
 class _Voicing {
-  const _Voicing({
-    required this.kickDecay,
-    required this.kickTone,
-    required this.kickPunch,
-    required this.snareTone,
-    required this.snareDecay,
-    required this.stabVoices,
-    required this.stabDetune,
-    required this.stabCutoff,
-    required this.stabDecay,
-    required this.stabSustain,
-    required this.bassCutoff,
-    required this.bassDrive,
-    required this.duck,
-    required this.room,
-  });
-
-  final double kickDecay, kickTone, kickPunch;
-  final double snareTone, snareDecay;
-  final int stabVoices;
-  final double stabDetune, stabCutoff, stabDecay, stabSustain;
-  final double bassCutoff, bassDrive;
+  static const kickDecay = 0.32, kickTone = 50.0, kickPunch = 1.0;
+  static const snareTone = 190.0, snareDecay = 0.17;
+  static const stabVoices = 5;
+  static const stabDetune = 0.18, stabCutoff = 5000.0, stabDecay = 0.35, stabSustain = 0.25;
+  static const bassCutoff = 900.0, bassDrive = 1.6;
 
   /// Sidechain depth (0..1) of the kick on the tonal buses.
-  final double duck;
-  final double room;
-
-  static _Voicing of(BaseStyle s) => switch (s) {
-    BaseStyle.classic => const _Voicing(
-      kickDecay: 0.32,
-      kickTone: 50,
-      kickPunch: 1.0,
-      snareTone: 190,
-      snareDecay: 0.17,
-      stabVoices: 5,
-      stabDetune: 0.18,
-      stabCutoff: 5000,
-      stabDecay: 0.35,
-      stabSustain: 0.25,
-      bassCutoff: 900,
-      bassDrive: 1.6,
-      duck: 0.35,
-      room: 0.78,
-    ),
-    BaseStyle.hyper => const _Voicing(
-      kickDecay: 0.26,
-      kickTone: 55,
-      kickPunch: 1.2,
-      snareTone: 210,
-      snareDecay: 0.14,
-      stabVoices: 5,
-      stabDetune: 0.12,
-      stabCutoff: 8000,
-      stabDecay: 0.25,
-      stabSustain: 0.3,
-      bassCutoff: 1200,
-      bassDrive: 1.8,
-      duck: 0.45,
-      room: 0.72,
-    ),
-    BaseStyle.venom => const _Voicing(
-      kickDecay: 0.4,
-      kickTone: 45,
-      kickPunch: 1.1,
-      snareTone: 170,
-      snareDecay: 0.2,
-      stabVoices: 7,
-      stabDetune: 0.28,
-      stabCutoff: 3200,
-      stabDecay: 0.5,
-      stabSustain: 0.35,
-      bassCutoff: 700,
-      bassDrive: 2.4,
-      duck: 0.5,
-      room: 0.84,
-    ),
-  };
+  static const duck = 0.35;
+  static const room = 0.78;
 }
 
 /// Mix settings per instrument: gain, pan, reverb send, bus.
@@ -118,7 +50,8 @@ const _channels = {
   Instrument.pad: _Channel(0.16, _Bus.music, send: 0.3, spread: 0.6),
 };
 
-/// Renders a composed built-in base to 48 kHz stereo audio.
+/// Renders a base project's own parts (a project without its audio) to
+/// 48 kHz stereo.
 ///
 /// Pure Dart and synchronous so it can run inside an isolate.
 class BaseRenderer {
@@ -126,11 +59,10 @@ class BaseRenderer {
 
   final int sampleRate;
 
-  AudioBuffer render(Composition c) {
-    final v = _Voicing.of(c.style);
+  AudioBuffer render(Score c) {
     final synth = Synth(seed: c.seed, sampleRate: sampleRate);
-    final spb = 60 / c.base.bpm;
-    final frames = (c.base.durationSeconds * sampleRate).ceil();
+    final spb = 60 / c.bpm;
+    final frames = (c.durationSeconds * sampleRate).ceil();
     final buses = {for (final b in _Bus.values) b: Float32List(frames * 2)};
     final send = Float32List(frames * 2);
     final cache = <String, Float32List>{};
@@ -142,8 +74,8 @@ class BaseRenderer {
       return cache.putIfAbsent(key, () {
         final seconds = e.length * spb;
         return switch (e.instrument) {
-          Instrument.kick => synth.kick(punch: v.kickPunch, decay: v.kickDecay, tone: v.kickTone),
-          Instrument.snare => synth.snare(tone: v.snareTone, decay: v.snareDecay),
+          Instrument.kick => synth.kick(punch: _Voicing.kickPunch, decay: _Voicing.kickDecay, tone: _Voicing.kickTone),
+          Instrument.snare => synth.snare(tone: _Voicing.snareTone, decay: _Voicing.snareDecay),
           Instrument.clap => synth.clap(),
           Instrument.hat => synth.hat(),
           Instrument.openHat => synth.hat(open: true),
@@ -153,24 +85,24 @@ class BaseRenderer {
           Instrument.bass => synth.bass(
             e.midi.isEmpty ? 38 : e.midi.first,
             seconds,
-            cutoff: v.bassCutoff,
-            drive: v.bassDrive,
+            cutoff: _Voicing.bassCutoff,
+            drive: _Voicing.bassDrive,
           ),
           Instrument.stab => synth.stab(
             e.midi,
             seconds,
-            voices: v.stabVoices,
-            detune: v.stabDetune,
-            cutoff: v.stabCutoff,
-            decay: v.stabDecay,
-            sustain: v.stabSustain,
+            voices: _Voicing.stabVoices,
+            detune: _Voicing.stabDetune,
+            cutoff: _Voicing.stabCutoff,
+            decay: _Voicing.stabDecay,
+            sustain: _Voicing.stabSustain,
           ),
           Instrument.pad => synth.pad(e.midi, seconds),
         };
       });
     }
 
-    for (final e in c.score) {
+    for (final e in c.events) {
       final ch = _channels[e.instrument]!;
       final at = (e.beat * spb * sampleRate).round();
       if (at >= frames) continue;
@@ -195,8 +127,8 @@ class BaseRenderer {
     }
 
     // Kick sidechain on bass + music so the low end stays clean.
-    if (v.duck > 0 && kicks.isNotEmpty) {
-      final env = _duckEnvelope(kicks, frames, v.duck);
+    if (_Voicing.duck > 0 && kicks.isNotEmpty) {
+      final env = _duckEnvelope(kicks, frames, _Voicing.duck);
       for (final b in [_Bus.low, _Bus.music]) {
         final x = buses[b]!;
         for (var f = 0; f < frames; f++) {
@@ -206,7 +138,7 @@ class BaseRenderer {
       }
     }
 
-    final wet = Reverb(sampleRate: sampleRate, room: v.room, damp: 0.4).process(send);
+    final wet = Reverb(sampleRate: sampleRate, room: _Voicing.room, damp: 0.4).process(send);
     final out = Float32List(frames * 2);
     for (final x in buses.values) {
       for (var i = 0; i < out.length; i++) {

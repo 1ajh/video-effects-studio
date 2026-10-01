@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
-import 'base.dart';
 import 'chart_import.dart';
 
 class FlpFormatException implements Exception {
@@ -347,7 +346,6 @@ class FlpProject {
     return ChartSource(
       name: title.isNotEmpty ? title : p.basenameWithoutExtension(path),
       path: path,
-      kind: BaseKind.flp,
       bpm: bpm ?? 140,
       beatsPerBar: timeSigNum,
       tracks: tracks,

@@ -172,23 +172,39 @@ double nearestD(double hz) {
   return best;
 }
 
-/// TD-PSOLA: re-synthesizes [x] at a constant [targetHz] (formants kept),
-/// producing [lengthSeconds] of audio. When the output is longer than the
-/// voiced material, the stable middle of the sample is traversed back and
-/// forth so the vowel sustains.
+/// The note of pitch class [pc] (0 = C … 11 = B) closest to [hz].
+double nearestOfClass(double hz, int pc) {
+  final midi = 69 + 12 * math.log(hz / 440) / math.ln2;
+  var best = (midi / 12).floor() * 12 + pc;
+  for (final m in [best - 12, best + 12]) {
+    if ((m - midi).abs() < (best - midi).abs()) best = m;
+  }
+  return 440 * math.pow(2, (best - 69) / 12).toDouble();
+}
+
+/// TD-PSOLA: re-synthesizes [x] at [targetHz] (formants kept), producing
+/// [lengthSeconds] of audio. With [follow] 0 the result is flat on the
+/// note (hard-tuned); 1 keeps the voice's own inflection around it. When
+/// the output is longer than the voiced material, the stable middle of the
+/// sample is traversed back and forth so the vowel sustains.
+///
+/// Without [targetHz] the note is the [pitchClass] (default D) closest to
+/// the sample's own pitch.
 CorrectedSample? psolaCorrect(
   Float32List x,
   int sampleRate, {
   double? targetHz,
+  int pitchClass = 2,
   double? lengthSeconds,
   double formant = 1.0,
+  double follow = 0,
 }) {
   final track = trackPitch(x, sampleRate);
   if (track == null) return null;
   final marks = pitchMarks(x, track);
   if (marks.length < 4) return null;
   final src = track.medianHz;
-  final target = targetHz ?? nearestD(src);
+  final target = targetHz ?? nearestOfClass(src, pitchClass);
   final outLen = ((lengthSeconds ?? x.length / sampleRate) * sampleRate).round();
   final out = Float64List(outLen + 4096);
   final norm = Float64List(outLen + 4096);
@@ -220,7 +236,15 @@ CorrectedSample? psolaCorrect(
     return (pos - marks[lo]).abs() < (marks[hi] - pos).abs() ? lo : hi;
   }
 
-  for (var t = 0.0; t < outLen; t += period) {
+  double periodAt(double pos) {
+    if (follow <= 0) return period;
+    final i = (pos / track.hop).round().clamp(0, track.hz.length - 1);
+    final hz = track.hz[i];
+    if (hz <= 0) return period;
+    return period / math.pow(hz / src, follow).toDouble();
+  }
+
+  for (var t = 0.0; t < outLen; t += periodAt(analysisTime(t))) {
     final k = nearestMark(analysisTime(t)).clamp(1, marks.length - 2);
     final c = marks[k];
     final left = ((c - marks[k - 1]) / formant).round();

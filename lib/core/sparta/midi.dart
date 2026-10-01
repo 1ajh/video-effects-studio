@@ -4,8 +4,8 @@ import 'dart:typed_data';
 
 import 'base.dart';
 import 'chart_import.dart';
-import 'composer.dart';
 import 'model.dart';
+import 'transcription.dart';
 
 class MidiNote {
   MidiNote(this.tick, this.length, this.key, this.velocity, {this.channel = 0});
@@ -168,7 +168,6 @@ class MidiFile {
   ChartSource toChartSource(String name, String path) => ChartSource(
     name: name,
     path: path,
-    kind: BaseKind.midi,
     bpm: double.parse(bpm.toStringAsFixed(3)),
     beatsPerBar: timeSigNum <= 0 ? 4 : timeSigNum,
     tracks: [
@@ -257,81 +256,71 @@ class MidiFile {
   // Sparta exports
   // ---------------------------------------------------------------------------
 
-  /// The sample chart, one track per lane (pitch lanes at D4 = 62 + semitone).
+  /// The remix chart, one track per lane: the pitch lane at the base's
+  /// root key plus its semitones, chorus words on C4, C#4… (1, 2, 3…),
+  /// percussion on GM drum keys, the quote on C5.
   static MidiFile fromChart(SpartaBase base) {
     const ppq = 480;
     int t(double beats) => (beats * ppq).round();
-    const drumKeys = {SampleRole.kick: 36, SampleRole.snare: 38, SampleRole.hat: 42, SampleRole.quote: 60};
+    const drumKeys = {SampleRole.kick: 36, SampleRole.snare: 38, SampleRole.hat: 42, SampleRole.quote: 72};
     final file = MidiFile(ppq: ppq, bpm: base.bpm, markers: [for (final s in base.sections) (t(s.startBeat), s.title)])
       ..timeSigNum = base.beatsPerBar;
+    final slots = wordSlotOrder(base.chart);
     for (final (i, role) in SampleRole.values.indexed) {
       final lane = base.lane(role);
       if (lane.isEmpty) continue;
-      final key = drumKeys[role] ?? 62;
+      int key(ChartNote n) => switch (role) {
+        SampleRole.pitch => base.rootKey + n.semitone,
+        SampleRole.word => 60 + math.max(0, slots.indexOf(n.slot)),
+        _ => drumKeys[role]!,
+      };
       file.tracks.add(
-        MidiTrack('${role.label} sample', [
+        MidiTrack(role == SampleRole.word ? 'Chorus words (${slots.join(' ')})' : '${role.label} sample', [
           for (final n in lane)
-            MidiNote(
-              t(n.beat),
-              math.max(1, t(n.length)),
-              (key + n.semitone).clamp(0, 127),
-              (n.velocity * 127).round(),
-              channel: i,
-            ),
+            MidiNote(t(n.beat), math.max(1, t(n.length)), key(n).clamp(0, 127), (n.velocity * 127).round(), channel: i),
         ]),
       );
     }
     return file;
   }
 
-  /// The built-in base's instrument parts (GM programs, drums on ch 10).
-  static MidiFile fromScore(Composition c) {
+  /// What the base plays, as transcribed: its hit / lead notes and its
+  /// kicks, snares and hats.
+  static MidiFile fromTranscription(BaseTranscription tr) {
     const ppq = 480;
     int t(double beats) => (beats * ppq).round();
-    const drumKeys = {
-      Instrument.kick: 36,
-      Instrument.snare: 38,
-      Instrument.clap: 39,
-      Instrument.hat: 42,
-      Instrument.openHat: 46,
-      Instrument.crash: 49,
-      Instrument.riser: 55,
-    };
-    const programs = {Instrument.bass: 38, Instrument.stab: 55, Instrument.pad: 48, Instrument.tom: 47};
-    final file = MidiFile(
-      ppq: ppq,
-      bpm: c.base.bpm,
-      markers: [for (final s in c.base.sections) (t(s.startBeat), s.title)],
+    final file = MidiFile(ppq: ppq, bpm: tr.bpm, markers: [for (final s in tr.sections) (t(s.startBeat), s.title)])
+      ..timeSigNum = tr.beatsPerBar;
+    file.tracks.add(
+      MidiTrack('Hits (${tr.rootName} root)', [
+        for (final h in tr.hits)
+          MidiNote(t(h.beat), math.max(1, t(h.length)), (tr.rootKey + h.semitone).clamp(0, 127), (h.velocity * 127).round()),
+      ]),
     );
-    final drums = MidiTrack('Drums');
-    final parts = <Instrument, MidiTrack>{};
-    var channel = 0;
-    final channels = <Instrument, int>{};
-    for (final e in c.score) {
-      final vel = (e.velocity * 110).round().clamp(1, 127);
-      if (drumKeys.containsKey(e.instrument)) {
-        drums.notes.add(
-          MidiNote(t(e.beat), math.max(1, t(math.min(e.length, 0.25))), drumKeys[e.instrument]!, vel, channel: 9),
-        );
-        continue;
-      }
-      final ch = channels.putIfAbsent(e.instrument, () {
-        final c2 = channel++;
-        return c2 >= 9 ? c2 + 1 : c2;
-      });
-      final track = parts.putIfAbsent(
-        e.instrument,
-        () => MidiTrack(_titleCase(e.instrument.name))..program = programs[e.instrument],
+    for (final (role, key) in const [(SampleRole.kick, 36), (SampleRole.snare, 38), (SampleRole.hat, 42)]) {
+      final beats = tr.drums(role);
+      if (beats.isEmpty) continue;
+      file.tracks.add(
+        MidiTrack(role.label, [for (final b in beats) MidiNote(t(b), t(0.25), key, 110, channel: 9)]),
       );
-      for (final m in e.midi) {
-        track.notes.add(MidiNote(t(e.beat), math.max(1, t(e.length)), m.round().clamp(0, 127), vel, channel: ch));
-      }
     }
-    file.tracks.addAll([drums, ...parts.values].where((t) => t.notes.isNotEmpty));
     return file;
   }
+}
 
-  static String _titleCase(String s) => s[0].toUpperCase() + s.substring(1);
+/// The chorus-word slots a chart uses, in natural order (1, 2, 3, 3A, 3B, 4…).
+List<String> wordSlotOrder(Iterable<ChartNote> chart) {
+  final slots = {
+    for (final n in chart)
+      if (n.role == SampleRole.word && n.slot.isNotEmpty) n.slot,
+  }.toList()..sort(compareSlots);
+  return slots;
+}
+
+int compareSlots(String a, String b) {
+  final na = int.tryParse(a.replaceAll(RegExp('[A-Z]'), '')) ?? 0;
+  final nb = int.tryParse(b.replaceAll(RegExp('[A-Z]'), '')) ?? 0;
+  return na != nb ? na.compareTo(nb) : a.compareTo(b);
 }
 
 class _Reader {
